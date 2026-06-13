@@ -626,11 +626,21 @@ function App() {
   };
 
   const importJson = (value: string) => {
-    const imported = normalizeTemplate(JSON.parse(value));
-    setTemplate(imported);
-    setSelectedBlockKey(null);
-    setJsonText(JSON.stringify(imported, null, 2));
-    setMessage('JSONを読み込みました。再編集できます。');
+    try {
+      if (!value.trim()) {
+        setMessage('読み込むJSONを入力してください。');
+        return;
+      }
+      const imported = normalizeTemplate(JSON.parse(value));
+      setTemplate(imported);
+      setSelectedBlockKey(null);
+      setJsonText(JSON.stringify(imported, null, 2));
+      setActiveTab('edit');
+      setMessage('JSONを読み込みました。再編集できます。');
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : '不明なエラー';
+      setMessage(`JSONの読み込みに失敗しました: ${detail}`);
+    }
   };
 
   const loadFile = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -1161,11 +1171,15 @@ function App() {
             </button>
             <input ref={fileInputRef} type="file" accept="application/json,.json" onChange={loadFile} hidden />
           </div>
-          <details open={jsonPreviewOpen} onToggle={(event) => setJsonPreviewOpen(event.currentTarget.open)}>
-            <summary>JSONプレビュー</summary>
-            <textarea className="jsonTextarea compactTextarea" value={jsonText} onChange={(event) => setJsonText(event.target.value)} spellCheck={false} placeholder="JSONをコピー、またはここへ貼り付けて読み込めます。" />
-          </details>
+          <label>
+            JSON入力
+            <textarea className="jsonTextarea compactTextarea" value={jsonText} onChange={(event) => setJsonText(event.target.value)} spellCheck={false} placeholder="ここへJSONを貼り付けて「テキストから読み込み」を押してください。" />
+          </label>
           <button className="wideButton" onClick={() => importJson(jsonText)}>テキストから読み込み</button>
+          <details open={jsonPreviewOpen} onToggle={(event) => setJsonPreviewOpen(event.currentTarget.open)}>
+            <summary>現在のJSONを表示</summary>
+            <pre className="propertyJson jsonPreview">{buildJsonText()}</pre>
+          </details>
           <div className="jsonSummary">
             <span>{normalizedTemplate.blocks.length} blocks</span>
             <span>{normalizedTemplate.markers.length} markers</span>

@@ -569,6 +569,11 @@ textarea:focus {
   min-height: 150px;
 }
 
+.jsonPreview {
+  margin: 0 10px 10px;
+  max-height: 220px;
+}
+
 details {
   border: 1px solid #c3ccd5;
   border-radius: 6px;
