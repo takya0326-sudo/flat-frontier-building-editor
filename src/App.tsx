@@ -185,6 +185,7 @@ function App() {
   const [textureMap, setTextureMap] = useState<TextureMap>(() => new Map());
   const [blockstateMap, setBlockstateMap] = useState<BlockstateMap>(() => new Map());
   const [modelMap, setModelMap] = useState<ModelMap>(() => new Map());
+  const [useMinecraftModels, setUseMinecraftModels] = useState(false);
   const [textureStatus, setTextureStatus] = useState('Minecraft jar / resource pack 未読込');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const textureInputRef = useRef<HTMLInputElement | null>(null);
@@ -292,7 +293,8 @@ function App() {
       setTextureMap(nextMap);
       setBlockstateMap(nextBlockstates);
       setModelMap(nextModels);
-      setTextureStatus(`${file.name}: textures ${nextMap.size} / blockstates ${nextBlockstates.size} / models ${nextModels.size} を読み込みました。`);
+      setUseMinecraftModels(false);
+      setTextureStatus(`${file.name}: textures ${nextMap.size} / blockstates ${nextBlockstates.size} / models ${nextModels.size} を読み込みました。モデル表示は手動でONにできます。`);
     } catch (error) {
       setTextureStatus('Minecraft jar / resource pack の読み込みに失敗しました。ファイルを確認してください。');
     } finally {
@@ -692,6 +694,8 @@ function App() {
       const imported = normalizeTemplate(Array.isArray(parsed) ? { blocks: parsed } : parsed);
       setTemplate(imported);
       setSelectedBlockKey(null);
+      setUseMinecraftModels(false);
+      setCameraResetKey((value) => value + 1);
       setJsonText(JSON.stringify(imported, null, 2));
       setActiveTab('edit');
       setMessage(`JSONを読み込みました。blocks: ${imported.blocks.length}、markers: ${imported.markers.length}`);
@@ -719,12 +723,13 @@ function App() {
           </div>
         </div>
 
-        <div className="panelStatus">
-          <span>選択: {selectedBlockOption.label}</span>
-          <span>{previewPosition ? `配置予定: x=${previewPosition.x} y=${previewPosition.y} z=${previewPosition.z}` : '配置予定: -'}</span>
-          <span>{normalizedTemplate.blocks.length}ブロック / {normalizedTemplate.markers.length}マーカー</span>
-          <span>モード: {modeLabel}</span>
-        </div>
+          <div className="panelStatus">
+            <span>選択: {selectedBlockOption.label}</span>
+            <span>{previewPosition ? `配置予定: x=${previewPosition.x} y=${previewPosition.y} z=${previewPosition.z}` : '配置予定: -'}</span>
+            <span>{normalizedTemplate.blocks.length}ブロック / {normalizedTemplate.markers.length}マーカー</span>
+            <span>モード: {modeLabel}</span>
+            <span>モデル: {useMinecraftModels ? 'ON' : 'OFF'}</span>
+          </div>
 
         <nav className="panelTabs" aria-label="左パネル">
           {([
@@ -913,6 +918,10 @@ function App() {
             <input ref={textureInputRef} type="file" accept=".jar,.zip,application/zip" onChange={loadTextureArchive} hidden />
           </div>
           <p className="helpText">{textureStatus}</p>
+          <label className="checkRow">
+            <input type="checkbox" checked={useMinecraftModels} disabled={blockstateMap.size === 0 || modelMap.size === 0} onChange={(event) => setUseMinecraftModels(event.target.checked)} />
+            jarモデル表示を使う
+          </label>
           <p className="helpText">blockstates / models / textures をブラウザ内だけで使い、JSONには保存しません。未対応ブロックは簡易表示へフォールバックします。</p>
         </section>
 
@@ -1317,6 +1326,7 @@ function App() {
             textureMap={textureMap}
             blockstateMap={blockstateMap}
             modelMap={modelMap}
+            useMinecraftModels={useMinecraftModels}
             viewPreset={viewPreset}
             cameraResetKey={cameraResetKey}
             onCellClick={handleCellClick}
@@ -1343,6 +1353,7 @@ function EditorScene({
   textureMap,
   blockstateMap,
   modelMap,
+  useMinecraftModels,
   viewPreset,
   cameraResetKey,
   onCellClick,
@@ -1362,6 +1373,7 @@ function EditorScene({
   textureMap: TextureMap;
   blockstateMap: BlockstateMap;
   modelMap: ModelMap;
+  useMinecraftModels: boolean;
   viewPreset: ViewPreset;
   cameraResetKey: number;
   onCellClick: (position: Vec3) => void;
@@ -1426,6 +1438,7 @@ function EditorScene({
             blockstate={findBlockstateForBlock(block.block, blockstateMap)}
             modelMap={modelMap}
             textureMap={textureMap}
+            useMinecraftModels={useMinecraftModels}
             onClick={(adjacent) => onBlockClick(block, adjacent)}
             onSelect={() => onBlockSelect(block)}
             onHover={(adjacent) => onPreviewChange(mode === 'block' && isInside(adjacent, size) && !blockMap.has(keyOf(adjacent)) ? adjacent : null)}
@@ -1558,6 +1571,7 @@ function BlockMesh({
   blockstate,
   modelMap,
   textureMap,
+  useMinecraftModels,
   onClick,
   onSelect,
   onHover,
@@ -1570,6 +1584,7 @@ function BlockMesh({
   blockstate?: MinecraftBlockstate;
   modelMap: ModelMap;
   textureMap: TextureMap;
+  useMinecraftModels: boolean;
   onClick: (adjacent: Vec3) => void;
   onSelect: () => void;
   onHover: (adjacent: Vec3) => void;
@@ -1600,7 +1615,7 @@ function BlockMesh({
         onHover(adjacentFromEvent(event));
       }}
     >
-      <BlockShape block={block} blockOption={paletteBlock} selected={selected} texture={texture} logTextures={logTextures} blockstate={blockstate} modelMap={modelMap} textureMap={textureMap} />
+      <BlockShape block={block} blockOption={paletteBlock} selected={selected} texture={texture} logTextures={logTextures} blockstate={blockstate} modelMap={modelMap} textureMap={textureMap} useMinecraftModels={useMinecraftModels} />
     </group>
   );
 }
@@ -1614,6 +1629,7 @@ function BlockShape({
   blockstate,
   modelMap,
   textureMap,
+  useMinecraftModels,
 }: {
   block: Block;
   blockOption: BlockOption;
@@ -1623,8 +1639,9 @@ function BlockShape({
   blockstate?: MinecraftBlockstate;
   modelMap: ModelMap;
   textureMap: TextureMap;
+  useMinecraftModels: boolean;
 }) {
-  const modelApplications = blockstate && shouldUseMinecraftModel(block.block) ? resolveBlockstateModels(block, blockstate, modelMap) : [];
+  const modelApplications = useMinecraftModels && blockstate && shouldUseMinecraftModel(block.block) ? resolveBlockstateModels(block, blockstate, modelMap) : [];
   if (modelApplications.length > 0) return <MinecraftModelShape applications={modelApplications} textureMap={textureMap} selected={selected} />;
   if (blockOption.kind === 'log' || isLogBlockId(block.block)) return <LogShape block={block} selected={selected} textures={logTextures} />;
   if (blockOption.kind === 'slab') return <SlabShape block={block} color={blockOption.color} selected={selected} texture={texture} />;
