@@ -19,10 +19,7 @@ export type MarkerType =
   | 'npc_spawn'
   | 'shop_counter';
 
-export type BlockProperties =
-  | { type: SlabType }
-  | { facing: Direction; half: StairHalf; shape: StairShape }
-  | { facing: Direction; [key: string]: string | boolean };
+export type BlockProperties = Record<string, string | boolean>;
 
 export type Block = Vec3 & {
   block: string;

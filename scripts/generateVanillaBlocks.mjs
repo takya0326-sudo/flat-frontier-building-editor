@@ -63,6 +63,7 @@ function readAssetIndexLanguage(jarFile) {
 
 function inferKind(id) {
   if (id === 'minecraft:water' || id === 'minecraft:lava') return 'liquid';
+  if (id.endsWith('_log') || id.endsWith('_stem') || id.endsWith('_wood') || id.endsWith('_hyphae')) return 'log';
   if (id.endsWith('_pressure_plate')) return 'pressure_plate';
   if (id.endsWith('_hanging_sign')) return 'hanging_sign';
   if (id.endsWith('_fence_gate')) return 'fence_gate';
@@ -91,6 +92,7 @@ function inferKind(id) {
 }
 
 function defaultPropertiesFor(kind) {
+  if (kind === 'log') return { axis: 'y' };
   if (kind === 'slab') return { type: 'bottom' };
   if (kind === 'stairs') return { facing: 'south', half: 'bottom', shape: 'straight' };
   if (kind === 'wall') return { north: 'none', east: 'none', south: 'none', west: 'none', up: 'true' };
@@ -107,6 +109,7 @@ function defaultPropertiesFor(kind) {
 
 function inferCategory(id, nameJa, kind) {
   const text = `${id} ${nameJa}`;
+  if (kind === 'log') return '原木';
   if (kind === 'slab') return 'ハーフブロック';
   if (kind === 'stairs') return '階段';
   if (kind === 'wall') return '壁';

@@ -1,5 +1,5 @@
 import { Canvas, useThree } from '@react-three/fiber';
-import { OrbitControls, Edges, Grid } from '@react-three/drei';
+import { OrbitControls, Edges, Grid, Text, Billboard } from '@react-three/drei';
 import {
   Box,
   ClipboardCopy,
@@ -39,6 +39,9 @@ import { flatFrontierBlocks } from './data/flatFrontierBlocks';
 type EditMode = 'select' | 'block' | 'erase' | 'marker';
 type ViewPreset = 'diagonal' | 'top' | 'front';
 type TextureMap = Map<string, THREE.Texture>;
+type LogAxis = 'x' | 'y' | 'z';
+type LogTextureSet = { side?: THREE.Texture; end?: THREE.Texture };
+type PanelTab = 'building' | 'block' | 'edit' | 'range' | 'json';
 
 const directionLabels: Record<Direction, string> = {
   north: '北',
@@ -66,6 +69,12 @@ const shapeLabels: Record<StairShape, string> = {
   outer_right: '外側右',
 };
 
+const logAxisLabels: Record<LogAxis, string> = {
+  y: '縦向き',
+  x: '横向きX',
+  z: '横向きZ',
+};
+
 const defaultTemplate: BuildingTemplate = {
   building_id: 'sample_building',
   building_type: 'general',
@@ -79,6 +88,26 @@ const defaultTemplate: BuildingTemplate = {
   required_materials: {},
   construction_time_ticks: 2400,
   instant_complete_fron: false,
+};
+
+const sampleTemplate: BuildingTemplate = {
+  ...defaultTemplate,
+  building_id: 'general_store_lv1',
+  building_type: 'shop',
+  display_name: '雑貨屋 Lv.1',
+  size: { x: 7, y: 5, z: 7 },
+  reserved_area: { x: 9, y: 5, z: 9 },
+  markers: [
+    { type: 'entrance', x: 3, y: 0, z: 0 },
+    { type: 'npc_spawn', x: 3, y: 1, z: 3 },
+  ],
+  blocks: [
+    { x: 2, y: 0, z: 2, block: 'minecraft:oak_planks' },
+    { x: 3, y: 0, z: 2, block: 'minecraft:oak_planks' },
+    { x: 4, y: 0, z: 2, block: 'minecraft:oak_planks' },
+    { x: 2, y: 1, z: 2, block: 'minecraft:oak_log', properties: { axis: 'y' } },
+    { x: 4, y: 1, z: 2, block: 'minecraft:oak_log', properties: { axis: 'y' } },
+  ],
 };
 
 const keyOf = (position: Vec3) => `${position.x}:${position.y}:${position.z}`;
@@ -97,6 +126,12 @@ function App() {
   const [stairShape, setStairShape] = useState<StairShape>('straight');
   const [buttonFace, setButtonFace] = useState('wall');
   const [buttonFacing, setButtonFacing] = useState<Direction>('south');
+  const [logAxis, setLogAxis] = useState<LogAxis>('y');
+  const [rangeStart, setRangeStart] = useState<Vec3>({ x: 0, y: 0, z: 0 });
+  const [rangeEnd, setRangeEnd] = useState<Vec3>({ x: 0, y: 0, z: 0 });
+  const [activeTab, setActiveTab] = useState<PanelTab>('block');
+  const [catalogLimit, setCatalogLimit] = useState(50);
+  const [jsonPreviewOpen, setJsonPreviewOpen] = useState(false);
   const [selectedBlockKey, setSelectedBlockKey] = useState<string | null>(null);
   const [blockQuery, setBlockQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('すべて');
@@ -123,6 +158,7 @@ function App() {
   const selectedBlockOption = findBlockOptionFor(selectedBlockId);
   const selectedPlacedBlock = selectedBlockKey ? normalizedTemplate.blocks.find((block) => keyOf(block) === selectedBlockKey) : undefined;
   const selectedPlacedOption = selectedPlacedBlock ? findBlockOptionFor(selectedPlacedBlock.block) : undefined;
+  const modeLabel = mode === 'block' ? '配置' : mode === 'select' ? '選択' : mode === 'erase' ? '削除' : 'マーカー';
 
   useEffect(() => {
     let cancelled = false;
@@ -160,6 +196,11 @@ function App() {
       return normalizeSearch(`${item.label} ${item.id} ${item.category} ${'kind' in item ? item.kind : ''}`).includes(query);
     });
   }, [blockQuery, catalogItems, selectedCategory]);
+  const visibleCatalogItems = filteredItems.slice(0, catalogLimit);
+
+  useEffect(() => {
+    setCatalogLimit(50);
+  }, [blockQuery, selectedCategory]);
 
   const updateTemplate = (patch: Partial<BuildingTemplate>) => {
     setTemplate((current) => ({ ...current, ...patch }));
@@ -228,6 +269,13 @@ function App() {
     }));
   };
 
+  const updateRangePoint = (target: 'start' | 'end', axis: keyof Vec3, value: number) => {
+    const max = Math.max(0, template.size[axis] - 1);
+    const nextValue = normalizeInt(value, 0, max);
+    const updater = target === 'start' ? setRangeStart : setRangeEnd;
+    updater((current) => ({ ...current, [axis]: nextValue }));
+  };
+
   const selectCatalogItem = (item: CatalogItem) => {
     if (item.itemType === 'marker') {
       setSelectedMarker(item.markerType);
@@ -245,7 +293,7 @@ function App() {
       setMessage('配置先が建物サイズの範囲外です。');
       return;
     }
-    const baseProperties = buildProperties(selectedBlockOption, { slabType, stairFacing, stairHalf, stairShape, buttonFace, buttonFacing });
+    const baseProperties = buildProperties(selectedBlockOption, { slabType, stairFacing, stairHalf, stairShape, buttonFace, buttonFacing, logAxis });
     const nextBlock: Block = {
       ...position,
       block: selectedBlockId,
@@ -301,6 +349,77 @@ function App() {
     setSelectedBlockKey(keyOf(nextBlock));
     setSelectedBlockKey(nextSelectedKey);
     setMessage(nextMessage);
+  };
+
+  const eachRangePosition = (visitor: (position: Vec3) => void) => {
+    const min = {
+      x: Math.min(rangeStart.x, rangeEnd.x),
+      y: Math.min(rangeStart.y, rangeEnd.y),
+      z: Math.min(rangeStart.z, rangeEnd.z),
+    };
+    const max = {
+      x: Math.max(rangeStart.x, rangeEnd.x),
+      y: Math.max(rangeStart.y, rangeEnd.y),
+      z: Math.max(rangeStart.z, rangeEnd.z),
+    };
+    const total = (max.x - min.x + 1) * (max.y - min.y + 1) * (max.z - min.z + 1);
+    if (total > 8000) {
+      setMessage('範囲が大きすぎます。8000ブロック以内にしてください。');
+      return false;
+    }
+    for (let x = min.x; x <= max.x; x += 1) {
+      for (let y = min.y; y <= max.y; y += 1) {
+        for (let z = min.z; z <= max.z; z += 1) {
+          visitor({ x, y, z });
+        }
+      }
+    }
+    return true;
+  };
+
+  const fillSelectedBlockRange = (overwrite = false) => {
+    const baseProperties = buildProperties(selectedBlockOption, { slabType, stairFacing, stairHalf, stairShape, buttonFace, buttonFacing, logAxis });
+    let placedCount = 0;
+    let skippedCount = 0;
+    let nextSelectedKey: string | null = null;
+    let rangeOk = true;
+    setTemplate((current) => {
+      let nextBlocks = current.blocks;
+      rangeOk = eachRangePosition((position) => {
+        const nextBlock: Block = {
+          ...position,
+          block: selectedBlockId,
+          properties: baseProperties ? { ...baseProperties } as BlockProperties : undefined,
+        };
+        if (overwrite) {
+          nextBlocks = nextBlocks.filter((block) => keyOf(block) !== keyOf(position));
+        }
+        const result = placeBlockWithOccupancy(nextBlocks, nextBlock, blockCatalog);
+        if (result.ok) {
+          nextBlocks = result.blocks;
+          placedCount += 1;
+          nextSelectedKey = result.selectedKey ?? keyOf(nextBlock);
+        } else {
+          skippedCount += 1;
+        }
+      });
+      if (!rangeOk) return current;
+      return { ...current, blocks: nextBlocks };
+    });
+    if (!rangeOk) return;
+    if (nextSelectedKey) setSelectedBlockKey(nextSelectedKey);
+    setMessage(`${selectedBlockOption.label}を範囲配置しました。配置 ${placedCount}、スキップ ${skippedCount}。`);
+  };
+
+  const deleteBlockRange = () => {
+    const deleteKeys = new Set<string>();
+    if (!eachRangePosition((position) => deleteKeys.add(keyOf(position)))) return;
+    setTemplate((current) => ({
+      ...current,
+      blocks: current.blocks.filter((block) => !deleteKeys.has(keyOf(block))),
+    }));
+    if (selectedBlockKey && deleteKeys.has(selectedBlockKey)) setSelectedBlockKey(null);
+    setMessage(`範囲内のブロックを削除しました。対象 ${deleteKeys.size} マス。`);
   };
 
   const eraseBlock = (position: Vec3) => {
@@ -532,7 +651,29 @@ function App() {
           </div>
         </div>
 
-        <section>
+        <div className="panelStatus">
+          <span>選択: {selectedBlockOption.label}</span>
+          <span>{previewPosition ? `配置予定: x=${previewPosition.x} y=${previewPosition.y} z=${previewPosition.z}` : '配置予定: -'}</span>
+          <span>{normalizedTemplate.blocks.length}ブロック / {normalizedTemplate.markers.length}マーカー</span>
+          <span>モード: {modeLabel}</span>
+        </div>
+
+        <nav className="panelTabs" aria-label="左パネル">
+          {([
+            ['building', '建物'],
+            ['block', 'ブロック'],
+            ['edit', '編集'],
+            ['range', '範囲'],
+            ['json', 'JSON'],
+          ] as const).map(([tab, label]) => (
+            <button key={tab} className={activeTab === tab ? 'active' : ''} onClick={() => setActiveTab(tab)}>
+              {label}
+            </button>
+          ))}
+        </nav>
+
+        <div className="panelScroller">
+        <section className={activeTab === 'building' ? 'panelSection active' : 'panelSection'}>
           <h2>建物情報</h2>
           <label>
             建物ID
@@ -589,7 +730,7 @@ function App() {
           </label>
         </section>
 
-        <section>
+        <section className={activeTab === 'edit' ? 'panelSection active' : 'panelSection'}>
           <h2>編集モード</h2>
           <div className="toolBar" role="toolbar" aria-label="編集モード">
             <button className={mode === 'select' ? 'active' : ''} onClick={() => setMode('select')} title="選択" aria-label="選択">
@@ -619,7 +760,7 @@ function App() {
           <div className="statusMessage">{message}</div>
         </section>
 
-        <section>
+        <section className={activeTab === 'edit' ? 'panelSection active' : 'panelSection compactOnly'}>
           <h2>3Dビュー操作</h2>
           <div className="viewControls">
             <button onClick={() => setCameraResetKey((value) => value + 1)}>
@@ -639,9 +780,20 @@ function App() {
               斜め
             </button>
           </div>
+          <div className="coordinateGuide">
+            <div><strong className="axisX">X</strong><span>横方向</span></div>
+            <div><strong className="axisY">Y</strong><span>高さ</span></div>
+            <div><strong className="axisZ">Z</strong><span>奥行き</span></div>
+            <div><strong>南</strong><span>正面方向</span></div>
+          </div>
+          <div className="hoverPosition">
+            {previewPosition
+              ? `配置予定: x=${previewPosition.x}, y=${previewPosition.y}, z=${previewPosition.z}`
+              : '配置予定: 3Dビューにマウスを乗せてください'}
+          </div>
         </section>
 
-        <section>
+        <section className={activeTab === 'block' ? 'panelSection active' : 'panelSection'}>
           <h2>ブロック選択</h2>
           <div className="selectedBlockCard">
             <span style={{ background: selectedBlockOption.color }} />
@@ -664,8 +816,9 @@ function App() {
               </select>
             </label>
           </div>
-          <div className="catalogList">
-            {filteredItems.map((item) => (
+          <div className="catalogMeta">{filteredItems.length} 件中 {visibleCatalogItems.length} 件を表示</div>
+          <div className="catalogList compactCatalog">
+            {visibleCatalogItems.map((item) => (
               <button
                 key={item.id}
                 className={isSelectedCatalogItem(item, selectedBlockId, selectedMarker, mode) ? 'catalogItem active' : 'catalogItem'}
@@ -677,9 +830,12 @@ function App() {
               </button>
             ))}
           </div>
+          {visibleCatalogItems.length < filteredItems.length && (
+            <button className="wideButton" onClick={() => setCatalogLimit((value) => value + 50)}>さらに表示</button>
+          )}
         </section>
 
-        <section>
+        <section className={activeTab === 'block' ? 'panelSection active' : 'panelSection'}>
           <h2>テクスチャ読込</h2>
           <div className="jsonActions">
             <button onClick={() => textureInputRef.current?.click()}>
@@ -692,7 +848,7 @@ function App() {
           <p className="helpText">読み込んだ画像はブラウザ内の3Dプレビューだけで使い、JSONには保存しません。</p>
         </section>
 
-        <section>
+        <section className={activeTab === 'block' ? 'panelSection active' : 'panelSection'}>
           <h2>ブロックプロパティ</h2>
           <div className="propertyPanel">
             <strong>{selectedBlockOption.label}</strong>
@@ -754,11 +910,21 @@ function App() {
                 <p>powered は Ver.0.1 では false で保存します。</p>
               </>
             )}
-            {selectedBlockOption.kind === 'normal' && <p>通常ブロックは properties なしで保存します。</p>}
+            {(selectedBlockOption.kind === 'log' || isLogBlockId(selectedBlockOption.id)) && (
+              <label>
+                原木の向き axis
+                <select value={logAxis} onChange={(event) => setLogAxis(event.target.value as LogAxis)}>
+                  {(['y', 'x', 'z'] as const).map((value) => (
+                    <option key={value} value={value}>{logAxisLabels[value]} / {value}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {selectedBlockOption.kind === 'normal' && !isLogBlockId(selectedBlockOption.id) && <p>通常ブロックは properties なしで保存します。</p>}
           </div>
         </section>
 
-        <section>
+        <section className={activeTab === 'edit' ? 'panelSection active' : 'panelSection'}>
           <h2>選択ブロックの移動</h2>
           <div className="moveCard">
             <p>{selectedPlacedBlock ? `現在座標: X=${selectedPlacedBlock.x}, Y=${selectedPlacedBlock.y}, Z=${selectedPlacedBlock.z}` : '3Dビューでブロックをクリックして選択してください。'}</p>
@@ -773,16 +939,58 @@ function App() {
           </div>
         </section>
 
-        <section>
+        <section className={activeTab === 'range' ? 'panelSection active' : 'panelSection'}>
+          <h2>範囲一括配置</h2>
+          <div className="propertyPanel">
+            <p>開始座標から終了座標まで、選択中のブロックをまとめて配置します。すでに埋まっている座標はスキップします。</p>
+            <div className="rangeGrid">
+              <strong>開始</strong>
+              {(['x', 'y', 'z'] as const).map((axis) => (
+                <label key={`start-${axis}`}>
+                  {axis.toUpperCase()}
+                  <input type="number" min={0} max={Math.max(0, template.size[axis] - 1)} value={rangeStart[axis]} onChange={(event) => updateRangePoint('start', axis, Number(event.target.value))} />
+                </label>
+              ))}
+              <strong>終了</strong>
+              {(['x', 'y', 'z'] as const).map((axis) => (
+                <label key={`end-${axis}`}>
+                  {axis.toUpperCase()}
+                  <input type="number" min={0} max={Math.max(0, template.size[axis] - 1)} value={rangeEnd[axis]} onChange={(event) => updateRangePoint('end', axis, Number(event.target.value))} />
+                </label>
+              ))}
+            </div>
+            <div className="jsonActions">
+              <button onClick={() => fillSelectedBlockRange(false)}>空きだけ配置</button>
+              <button onClick={() => fillSelectedBlockRange(true)}>上書き配置</button>
+              <button className="dangerButton" onClick={deleteBlockRange}>範囲削除</button>
+            </div>
+          </div>
+        </section>
+
+        <section className={activeTab === 'edit' ? 'panelSection active' : 'panelSection'}>
           <h2>選択中ブロック</h2>
           <div className="propertyPanel">
             {selectedPlacedBlock && selectedPlacedOption ? (
               <>
                 <strong>{selectedPlacedOption.label}</strong>
                 <small>{selectedPlacedBlock.block}</small>
-                <p>座標: x={selectedPlacedBlock.x}, y={selectedPlacedBlock.y}, z={selectedPlacedBlock.z}</p>
+                <div className="coordinateReadout" aria-label="選択中ブロックの座標">
+                  <span><b>X</b>{selectedPlacedBlock.x}</span>
+                  <span><b>Y</b>{selectedPlacedBlock.y}</span>
+                  <span><b>Z</b>{selectedPlacedBlock.z}</span>
+                </div>
                 <p>kind: {selectedPlacedOption.kind}</p>
                 <pre className="propertyJson">{JSON.stringify(selectedPlacedBlock.properties ?? {}, null, 2)}</pre>
+                {(selectedPlacedOption.kind === 'log' || isLogBlockId(selectedPlacedBlock.block)) && (
+                  <label>
+                    原木の向き axis
+                    <select value={getLogAxis(selectedPlacedBlock.properties)} onChange={(event) => setSelectedStringProperty('axis', event.target.value)}>
+                      {(['y', 'x', 'z'] as const).map((value) => (
+                        <option key={value} value={value}>{logAxisLabels[value]} / {value}</option>
+                      ))}
+                    </select>
+                  </label>
+                )}
                 {selectedPlacedOption.kind === 'slab' && (
                   <label>
                     ハーフブロック type
@@ -908,7 +1116,7 @@ function App() {
           </div>
         </section>
 
-        <section>
+        <section className={activeTab === 'edit' ? 'panelSection active' : 'panelSection'}>
           <h2>マーカー設定</h2>
           <div className="markerList">
             {markerCatalog.map((marker) => (
@@ -927,7 +1135,7 @@ function App() {
           </div>
         </section>
 
-        <section>
+        <section className={activeTab === 'json' ? 'panelSection active' : 'panelSection'}>
           <h2>JSON出力 / 読み込み</h2>
           <div className="jsonActions">
             <button onClick={copyJson}>
@@ -942,10 +1150,27 @@ function App() {
               <FileUp size={16} />
               読み込み
             </button>
+            <button onClick={() => {
+              const sample = normalizeTemplate(sampleTemplate);
+              setTemplate(sample);
+              setSelectedBlockKey(null);
+              setJsonText(JSON.stringify(sample, null, 2));
+              setMessage('サンプル建物を読み込みました。');
+            }}>
+              サンプル
+            </button>
             <input ref={fileInputRef} type="file" accept="application/json,.json" onChange={loadFile} hidden />
           </div>
-          <textarea className="jsonTextarea" value={jsonText} onChange={(event) => setJsonText(event.target.value)} spellCheck={false} placeholder="JSONをコピー、またはここへ貼り付けて読み込めます。" />
+          <details open={jsonPreviewOpen} onToggle={(event) => setJsonPreviewOpen(event.currentTarget.open)}>
+            <summary>JSONプレビュー</summary>
+            <textarea className="jsonTextarea compactTextarea" value={jsonText} onChange={(event) => setJsonText(event.target.value)} spellCheck={false} placeholder="JSONをコピー、またはここへ貼り付けて読み込めます。" />
+          </details>
           <button className="wideButton" onClick={() => importJson(jsonText)}>テキストから読み込み</button>
+          <div className="jsonSummary">
+            <span>{normalizedTemplate.blocks.length} blocks</span>
+            <span>{normalizedTemplate.markers.length} markers</span>
+            <span>{Object.keys(normalizedTemplate.required_materials).length} materials</span>
+          </div>
           <div className="materials">
             {Object.entries(normalizedTemplate.required_materials).map(([id, count]) => (
               <div key={id}>
@@ -956,18 +1181,49 @@ function App() {
           </div>
         </section>
 
-        <section>
+        <section className={activeTab === 'json' ? 'panelSection active' : 'panelSection'}>
           <h2>操作説明</h2>
-          <p className="helpText">左ドラッグでカメラ回転、ホイールでズーム、右ドラッグで平行移動できます。ブロック配置モードでは、半透明プレビューの位置にクリックで配置します。削除モードではブロックをクリックして削除します。</p>
+          <details>
+            <summary>ヘルプを開く</summary>
+            <p className="helpText">左ドラッグでカメラ回転、ホイールでズーム、右ドラッグで平行移動できます。ブロック配置モードでは、半透明プレビューの位置にクリックで配置します。削除モードではブロックをクリックして削除します。</p>
+          </details>
         </section>
+        </div>
       </aside>
 
       <section className="viewport">
+        <div className="viewportControls">
+          <button onClick={() => setCameraResetKey((value) => value + 1)} title="カメラリセット"><RotateCcw size={14} />リセット</button>
+          <button className={viewPreset === 'top' ? 'active' : ''} onClick={() => setViewPreset('top')}><Eye size={14} />上</button>
+          <button className={viewPreset === 'front' ? 'active' : ''} onClick={() => setViewPreset('front')}><Eye size={14} />正面</button>
+          <button className={viewPreset === 'diagonal' ? 'active' : ''} onClick={() => setViewPreset('diagonal')}><Eye size={14} />斜め</button>
+        </div>
         <div className="statsBar">
           <span>{normalizedTemplate.blocks.length} ブロック</span>
           <span>{normalizedTemplate.markers.length} マーカー</span>
           <span>{Object.keys(normalizedTemplate.required_materials).length} 材料</span>
           <span>バニラ {vanillaBlockCount} 件</span>
+          <span>{previewPosition ? `配置予定 x=${previewPosition.x}, y=${previewPosition.y}, z=${previewPosition.z}` : '配置予定 -'}</span>
+        </div>
+        <div className="coordinateOverlay">
+          <strong>座標</strong>
+          <span>{previewPosition ? `配置予定 x=${previewPosition.x}, y=${previewPosition.y}, z=${previewPosition.z}` : '配置予定なし'}</span>
+          {selectedPlacedBlock ? (
+            <>
+              <span>選択 x={selectedPlacedBlock.x}, y={selectedPlacedBlock.y}, z={selectedPlacedBlock.z}</span>
+              <small>{selectedPlacedBlock.block}</small>
+              <div className="miniMoveGrid">
+                <button onClick={() => moveSelectedBlock({ x: 1, y: 0, z: 0 }, '東へ')}>東</button>
+                <button onClick={() => moveSelectedBlock({ x: -1, y: 0, z: 0 }, '西へ')}>西</button>
+                <button onClick={() => moveSelectedBlock({ x: 0, y: 1, z: 0 }, '上へ')}>上</button>
+                <button onClick={() => moveSelectedBlock({ x: 0, y: -1, z: 0 }, '下へ')}>下</button>
+                <button onClick={() => moveSelectedBlock({ x: 0, y: 0, z: 1 }, '南へ')}>南</button>
+                <button onClick={() => moveSelectedBlock({ x: 0, y: 0, z: -1 }, '北へ')}>北</button>
+              </div>
+            </>
+          ) : (
+            <span>ブロック未選択</span>
+          )}
         </div>
         <Canvas camera={{ position: [16, 12, 16], fov: 45 }} shadows>
           <color attach="background" args={['#c9d6df']} />
@@ -1063,6 +1319,7 @@ function EditorScene({
           fadeDistance={80}
           infiniteGrid={false}
         />
+        <AxisGuide size={size} />
         <mesh position={[size.x / 2 - 0.5, size.y / 2 - 0.5, size.z / 2 - 0.5]}>
           <boxGeometry args={[size.x, size.y, size.z]} />
           <meshBasicMaterial color="#1f2937" transparent opacity={0.04} />
@@ -1084,6 +1341,7 @@ function EditorScene({
             blockCatalog={blockCatalog}
             selected={selectedBlockKey === keyOf(block)}
             texture={findTextureForBlock(block.block, textureMap)}
+            logTextures={findLogTextures(block.block, textureMap)}
             onClick={(adjacent) => onBlockClick(block, adjacent)}
             onSelect={() => onBlockSelect(block)}
             onHover={(adjacent) => onPreviewChange(mode === 'block' && isInside(adjacent, size) && !blockMap.has(keyOf(adjacent)) ? adjacent : null)}
@@ -1137,6 +1395,46 @@ function CameraRig({ size, viewPreset, cameraResetKey }: { size: Vec3; viewPrese
   );
 }
 
+function AxisGuide({ size }: { size: Vec3 }) {
+  const xEnd = Math.max(0.5, size.x - 0.5);
+  const yEnd = Math.max(0.8, size.y - 0.2);
+  const zEnd = Math.max(0.5, size.z - 0.5);
+  return (
+    <group>
+      <ThinBox color="#ff2d2d" selected={false} args={[size.x + 0.35, 0.05, 0.05]} position={[size.x / 2 - 0.5, 0.08, -1.25]} />
+      <ThinBox color="#2ee66b" selected={false} args={[0.06, size.y + 0.4, 0.06]} position={[-1.25, size.y / 2 - 0.35, -1.25]} />
+      <ThinBox color="#2f80ff" selected={false} args={[0.05, 0.05, size.z + 0.35]} position={[-1.25, 0.08, size.z / 2 - 0.5]} />
+      <AxisLabel text="X" color="#ff2d2d" position={[xEnd + 0.55, 0.18, -1.25]} />
+      <AxisLabel text="Y" color="#16c95d" position={[-1.25, yEnd + 0.35, -1.25]} />
+      <AxisLabel text="Z" color="#2f80ff" position={[-1.25, 0.18, zEnd + 0.55]} />
+      <AxisLabel text="0,0,0" color="#111827" position={[-0.45, 0.16, -0.7]} fontSize={0.18} />
+      {Array.from({ length: size.x }, (_, x) => (
+        <AxisLabel key={`x-${x}`} text={String(x)} color="#dc2626" position={[x, 0.05, -0.72]} fontSize={0.14} />
+      ))}
+      {Array.from({ length: size.z }, (_, z) => (
+        <AxisLabel key={`z-${z}`} text={String(z)} color="#2563eb" position={[-0.72, 0.05, z]} fontSize={0.14} />
+      ))}
+    </group>
+  );
+}
+
+function AxisLabel({ text, color, position, fontSize = 0.32 }: { text: string; color: string; position: [number, number, number]; fontSize?: number }) {
+  return (
+    <Billboard position={position}>
+      <Text
+        fontSize={fontSize}
+        color={color}
+        anchorX="center"
+        anchorY="middle"
+        outlineWidth={0.015}
+        outlineColor="#ffffff"
+      >
+        {text}
+      </Text>
+    </Billboard>
+  );
+}
+
 function Cell({
   position,
   hasBlock,
@@ -1172,6 +1470,7 @@ function BlockMesh({
   blockCatalog,
   selected,
   texture,
+  logTextures,
   onClick,
   onSelect,
   onHover,
@@ -1180,6 +1479,7 @@ function BlockMesh({
   blockCatalog: BlockOption[];
   selected: boolean;
   texture?: THREE.Texture;
+  logTextures?: LogTextureSet;
   onClick: (adjacent: Vec3) => void;
   onSelect: () => void;
   onHover: (adjacent: Vec3) => void;
@@ -1210,12 +1510,13 @@ function BlockMesh({
         onHover(adjacentFromEvent(event));
       }}
     >
-      <BlockShape block={block} blockOption={paletteBlock} selected={selected} texture={texture} />
+      <BlockShape block={block} blockOption={paletteBlock} selected={selected} texture={texture} logTextures={logTextures} />
     </group>
   );
 }
 
-function BlockShape({ block, blockOption, selected, texture }: { block: Block; blockOption: BlockOption; selected: boolean; texture?: THREE.Texture }) {
+function BlockShape({ block, blockOption, selected, texture, logTextures }: { block: Block; blockOption: BlockOption; selected: boolean; texture?: THREE.Texture; logTextures?: LogTextureSet }) {
+  if (blockOption.kind === 'log' || isLogBlockId(block.block)) return <LogShape block={block} selected={selected} textures={logTextures} />;
   if (blockOption.kind === 'slab') return <SlabShape block={block} color={blockOption.color} selected={selected} texture={texture} />;
   if (blockOption.kind === 'stairs') return <StairShapeMesh block={block} color={blockOption.color} selected={selected} texture={texture} />;
   if (blockOption.kind === 'button') return <ButtonShape block={block} color={blockOption.color} selected={selected} texture={texture} />;
@@ -1259,6 +1560,60 @@ function BoxShape({ color, selected, transparent = false, texture }: { color: st
       <Material color={color} selected={selected} transparent={transparent} texture={texture} />
       <Edges color={selected ? '#facc15' : '#1f2937'} />
     </mesh>
+  );
+}
+
+function LogShape({ block, selected, textures }: { block: Block; selected: boolean; textures?: LogTextureSet }) {
+  const axis = getLogAxis(block.properties);
+  const endIndices = axis === 'x' ? [0, 1] : axis === 'y' ? [2, 3] : [4, 5];
+  return (
+    <group>
+      <mesh castShadow receiveShadow>
+        <boxGeometry args={[1, 1, 1]} />
+        {Array.from({ length: 6 }, (_, index) => {
+          const isEnd = endIndices.includes(index);
+          return (
+            <meshStandardMaterial
+              key={index}
+              attach={`material-${index}`}
+              color={isEnd ? (textures?.end ? '#ffffff' : '#c58a4a') : (textures?.side ? '#ffffff' : '#6f4328')}
+              map={isEnd ? textures?.end : textures?.side}
+              roughness={0.9}
+              metalness={0.02}
+              emissive={selected ? '#facc15' : '#000000'}
+              emissiveIntensity={selected ? 0.18 : 0}
+            />
+          );
+        })}
+        <Edges color={selected ? '#facc15' : '#1f2937'} />
+      </mesh>
+      {!textures?.end && <LogEndRings axis={axis} />}
+    </group>
+  );
+}
+
+function LogEndRings({ axis }: { axis: LogAxis }) {
+  const rotation: [number, number, number] = axis === 'x' ? [0, Math.PI / 2, 0] : axis === 'y' ? [Math.PI / 2, 0, 0] : [0, 0, 0];
+  const positions: Record<LogAxis, [[number, number, number], [number, number, number]]> = {
+    x: [[-0.505, 0, 0], [0.505, 0, 0]],
+    y: [[0, -0.505, 0], [0, 0.505, 0]],
+    z: [[0, 0, -0.505], [0, 0, 0.505]],
+  };
+  return (
+    <>
+      {positions[axis].map((position, index) => (
+        <group key={index} position={position} rotation={rotation}>
+          <mesh>
+            <torusGeometry args={[0.2, 0.012, 8, 28]} />
+            <meshBasicMaterial color="#8a5a32" />
+          </mesh>
+          <mesh>
+            <torusGeometry args={[0.32, 0.01, 8, 32]} />
+            <meshBasicMaterial color="#9a693b" />
+          </mesh>
+        </group>
+      ))}
+    </>
   );
 }
 
@@ -1586,6 +1941,9 @@ function normalizeProperties(blockOption: BlockOption, properties?: Record<strin
       shape: 'straight',
     };
   }
+  if (blockOption.kind === 'log' || isLogBlockId(blockOption.id)) {
+    return { axis: isLogAxis(properties?.axis) ? properties.axis : 'y' } as BlockProperties;
+  }
   if (blockOption.kind === 'door') {
     const defaults = defaultPropertiesForKind('door');
     return { ...defaults, ...stringifyProperties(properties) } as BlockProperties;
@@ -1597,8 +1955,9 @@ function normalizeProperties(blockOption: BlockOption, properties?: Record<strin
 
 function buildProperties(
   blockOption: BlockOption,
-  values: { slabType: SlabType; stairFacing: Direction; stairHalf: StairHalf; stairShape: StairShape; buttonFace: string; buttonFacing: Direction },
+  values: { slabType: SlabType; stairFacing: Direction; stairHalf: StairHalf; stairShape: StairShape; buttonFace: string; buttonFacing: Direction; logAxis: LogAxis },
 ): BlockProperties | undefined {
+  if (blockOption.kind === 'log' || isLogBlockId(blockOption.id)) return { axis: values.logAxis } as BlockProperties;
   if (blockOption.kind === 'slab') return { type: values.slabType };
   if (blockOption.kind === 'stairs') {
     return { facing: values.stairFacing, half: values.stairHalf, shape: values.stairShape };
@@ -1652,6 +2011,33 @@ function findTextureForBlock(blockId: string, textureMap: TextureMap) {
     if (texture) return texture;
   }
   return undefined;
+}
+
+function findLogTextures(blockId: string, textureMap: TextureMap): LogTextureSet | undefined {
+  if (!blockId.startsWith('minecraft:') || !isLogBlockId(blockId)) return undefined;
+  const name = blockId.slice('minecraft:'.length);
+  const side = findFirstTexture(textureMap, logSideTextureCandidates(name));
+  const end = findFirstTexture(textureMap, logEndTextureCandidates(name));
+  return side || end ? { side, end } : undefined;
+}
+
+function findFirstTexture(textureMap: TextureMap, candidates: string[]) {
+  for (const candidate of candidates) {
+    const texture = textureMap.get(candidate);
+    if (texture) return texture;
+  }
+  return undefined;
+}
+
+function logSideTextureCandidates(name: string) {
+  return Array.from(new Set([name, name.replace(/_wood$/, '_log'), name.replace(/_hyphae$/, '_stem')].filter(Boolean)));
+}
+
+function logEndTextureCandidates(name: string) {
+  const candidates = [`${name}_top`];
+  if (name.endsWith('_wood')) candidates.push(`${name.replace(/_wood$/, '_log')}_top`);
+  if (name.endsWith('_hyphae')) candidates.push(`${name.replace(/_hyphae$/, '_stem')}_top`);
+  return Array.from(new Set(candidates.filter(Boolean)));
 }
 
 function textureCandidates(name: string) {
@@ -1743,6 +2129,7 @@ function findBlockOptionFromCatalog(blockId: string, blockCatalog: BlockOption[]
 }
 
 function defaultPropertiesForKind(kind: BlockOption['kind']): Record<string, string> | undefined {
+  if (kind === 'log') return { axis: 'y' };
   if (kind === 'slab') return { type: 'bottom' };
   if (kind === 'stairs') return { facing: 'south', half: 'bottom', shape: 'straight' };
   if (kind === 'door') return { facing: 'south', half: 'lower', hinge: 'left', open: 'false', powered: 'false' };
@@ -1758,6 +2145,7 @@ function defaultPropertiesForKind(kind: BlockOption['kind']): Record<string, str
 
 function inferBlockKind(blockId: string): BlockOption['kind'] {
   if (blockId === 'minecraft:water' || blockId === 'minecraft:lava') return 'liquid';
+  if (isLogBlockId(blockId)) return 'log';
   if (blockId.endsWith('_pressure_plate')) return 'pressure_plate';
   if (blockId.endsWith('_hanging_sign')) return 'hanging_sign';
   if (blockId.endsWith('_fence_gate')) return 'fence_gate';
@@ -1782,13 +2170,17 @@ function inferBlockKind(blockId: string): BlockOption['kind'] {
   return 'normal';
 }
 
+function isLogBlockId(blockId: string) {
+  return blockId.endsWith('_log') || blockId.endsWith('_stem') || blockId.endsWith('_wood') || blockId.endsWith('_hyphae');
+}
+
 function blockHasFacing(block: Block) {
   const option = findBlockOptionFromCatalog(block.block, staticBlockCatalog);
   return option.kind === 'stairs' || option.kind === 'button' || option.kind === 'wall_torch' || option.kind === 'door' || option.kind === 'trapdoor' || option.kind === 'fence_gate' || option.kind === 'wall_sign' || option.kind === 'facing' || Boolean(block.properties && 'facing' in block.properties);
 }
 
 function getFacing(block: Block): Direction {
-  if (block.properties && 'facing' in block.properties) return block.properties.facing;
+  if (block.properties && 'facing' in block.properties && isDirection(block.properties.facing)) return block.properties.facing;
   return 'south';
 }
 
@@ -1874,6 +2266,10 @@ function isSlabType(value: unknown): value is SlabType {
   return value === 'bottom' || value === 'top' || value === 'double';
 }
 
+function isLogAxis(value: unknown): value is LogAxis {
+  return value === 'x' || value === 'y' || value === 'z';
+}
+
 function isStairHalf(value: unknown): value is StairHalf {
   return value === 'bottom' || value === 'top';
 }
@@ -1882,8 +2278,12 @@ function getSlabType(properties: Block['properties']): SlabType {
   return properties && 'type' in properties && isSlabType(properties.type) ? properties.type : 'bottom';
 }
 
+function getLogAxis(properties: Block['properties']): LogAxis {
+  return properties && 'axis' in properties && isLogAxis(properties.axis) ? properties.axis : 'y';
+}
+
 function getStairProperties(properties: Block['properties']) {
-  if (properties && 'facing' in properties) {
+  if (properties && 'facing' in properties && isDirection(properties.facing)) {
     return {
       facing: properties.facing,
       half: isStairHalf(properties.half) ? properties.half : 'bottom',

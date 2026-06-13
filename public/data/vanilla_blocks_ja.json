@@ -61,7 +61,10 @@
     "id": "minecraft:acacia_log",
     "nameJa": "アカシアの原木",
     "category": "原木",
-    "kind": "normal"
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:acacia_planks",
@@ -142,8 +145,11 @@
   {
     "id": "minecraft:acacia_wood",
     "nameJa": "アカシアの木",
-    "category": "木材",
-    "kind": "normal"
+    "category": "原木",
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:activator_rail",
@@ -230,13 +236,19 @@
     "id": "minecraft:attached_melon_stem",
     "nameJa": "実がなったスイカの茎",
     "category": "原木",
-    "kind": "crop"
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:attached_pumpkin_stem",
     "nameJa": "実がなったカボチャの茎",
     "category": "原木",
-    "kind": "crop"
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:azalea",
@@ -4656,7 +4668,10 @@
     "id": "minecraft:big_dripleaf_stem",
     "nameJa": "大きなドリップリーフの茎",
     "category": "原木",
-    "kind": "normal"
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:birch_button",
@@ -4720,7 +4735,10 @@
     "id": "minecraft:birch_log",
     "nameJa": "シラカバの原木",
     "category": "原木",
-    "kind": "normal"
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:birch_planks",
@@ -4801,8 +4819,11 @@
   {
     "id": "minecraft:birch_wood",
     "nameJa": "シラカバの木",
-    "category": "木材",
-    "kind": "normal"
+    "category": "原木",
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:black_banner",
@@ -5412,7 +5433,10 @@
     "id": "minecraft:cherry_log",
     "nameJa": "サクラの原木",
     "category": "原木",
-    "kind": "normal"
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:cherry_planks",
@@ -5493,8 +5517,11 @@
   {
     "id": "minecraft:cherry_wood",
     "nameJa": "サクラの木",
-    "category": "木材",
-    "kind": "normal"
+    "category": "原木",
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:chest",
@@ -6050,7 +6077,10 @@
     "id": "minecraft:crimson_hyphae",
     "nameJa": "真紅の菌糸",
     "category": "原木",
-    "kind": "normal"
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:crimson_nylium",
@@ -6112,7 +6142,10 @@
     "id": "minecraft:crimson_stem",
     "nameJa": "真紅の幹",
     "category": "原木",
-    "kind": "normal"
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:crimson_trapdoor",
@@ -6360,7 +6393,10 @@
     "id": "minecraft:dark_oak_log",
     "nameJa": "ダークオークの原木",
     "category": "原木",
-    "kind": "normal"
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:dark_oak_planks",
@@ -6441,8 +6477,11 @@
   {
     "id": "minecraft:dark_oak_wood",
     "nameJa": "ダークオークの木",
-    "category": "木材",
-    "kind": "normal"
+    "category": "原木",
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:dark_prismarine",
@@ -7683,7 +7722,10 @@
     "id": "minecraft:jungle_log",
     "nameJa": "ジャングルの原木",
     "category": "原木",
-    "kind": "normal"
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:jungle_planks",
@@ -7764,8 +7806,11 @@
   {
     "id": "minecraft:jungle_wood",
     "nameJa": "ジャングルの木",
-    "category": "木材",
-    "kind": "normal"
+    "category": "原木",
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:kelp",
@@ -8297,7 +8342,10 @@
     "id": "minecraft:mangrove_log",
     "nameJa": "マングローブの原木",
     "category": "原木",
-    "kind": "normal"
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:mangrove_planks",
@@ -8384,8 +8432,11 @@
   {
     "id": "minecraft:mangrove_wood",
     "nameJa": "マングローブの木",
-    "category": "木材",
-    "kind": "normal"
+    "category": "原木",
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:medium_amethyst_bud",
@@ -8403,7 +8454,10 @@
     "id": "minecraft:melon_stem",
     "nameJa": "スイカの茎",
     "category": "原木",
-    "kind": "crop"
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:moss_block",
@@ -8556,7 +8610,10 @@
     "id": "minecraft:mushroom_stem",
     "nameJa": "キノコの柄",
     "category": "原木",
-    "kind": "plant"
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:mycelium",
@@ -8731,7 +8788,10 @@
     "id": "minecraft:oak_log",
     "nameJa": "オークの原木",
     "category": "原木",
-    "kind": "normal"
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:oak_planks",
@@ -8812,8 +8872,11 @@
   {
     "id": "minecraft:oak_wood",
     "nameJa": "オークの木",
-    "category": "木材",
-    "kind": "normal"
+    "category": "原木",
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:observer",
@@ -9146,7 +9209,10 @@
     "id": "minecraft:pale_oak_log",
     "nameJa": "ペールオークの原木",
     "category": "原木",
-    "kind": "normal"
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:pale_oak_planks",
@@ -9227,8 +9293,11 @@
   {
     "id": "minecraft:pale_oak_wood",
     "nameJa": "ペールオークの木",
-    "category": "木材",
-    "kind": "normal"
+    "category": "原木",
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:pearlescent_froglight",
@@ -10087,7 +10156,10 @@
     "id": "minecraft:pumpkin_stem",
     "nameJa": "カボチャの茎",
     "category": "原木",
-    "kind": "crop"
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:purple_banner",
@@ -11016,7 +11088,10 @@
     "id": "minecraft:spruce_log",
     "nameJa": "トウヒの原木",
     "category": "原木",
-    "kind": "normal"
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:spruce_planks",
@@ -11097,8 +11172,11 @@
   {
     "id": "minecraft:spruce_wood",
     "nameJa": "トウヒの木",
-    "category": "木材",
-    "kind": "normal"
+    "category": "原木",
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:sticky_piston",
@@ -11198,13 +11276,19 @@
     "id": "minecraft:stripped_acacia_log",
     "nameJa": "樹皮を剥いだアカシアの原木",
     "category": "原木",
-    "kind": "normal"
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:stripped_acacia_wood",
     "nameJa": "樹皮を剥いだアカシアの木",
-    "category": "木材",
-    "kind": "normal"
+    "category": "原木",
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:stripped_bamboo_block",
@@ -11216,121 +11300,181 @@
     "id": "minecraft:stripped_birch_log",
     "nameJa": "樹皮を剥いだシラカバの原木",
     "category": "原木",
-    "kind": "normal"
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:stripped_birch_wood",
     "nameJa": "樹皮を剥いだシラカバの木",
-    "category": "木材",
-    "kind": "normal"
+    "category": "原木",
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:stripped_cherry_log",
     "nameJa": "樹皮を剥いだサクラの原木",
     "category": "原木",
-    "kind": "normal"
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:stripped_cherry_wood",
     "nameJa": "樹皮を剥いだサクラの木",
-    "category": "木材",
-    "kind": "normal"
+    "category": "原木",
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:stripped_crimson_hyphae",
     "nameJa": "表皮を剥いだ真紅の菌糸",
     "category": "原木",
-    "kind": "normal"
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:stripped_crimson_stem",
     "nameJa": "表皮を剥いだ真紅の幹",
     "category": "原木",
-    "kind": "normal"
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:stripped_dark_oak_log",
     "nameJa": "樹皮を剥いだダークオークの原木",
     "category": "原木",
-    "kind": "normal"
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:stripped_dark_oak_wood",
     "nameJa": "樹皮を剥いだダークオークの木",
-    "category": "木材",
-    "kind": "normal"
+    "category": "原木",
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:stripped_jungle_log",
     "nameJa": "樹皮を剥いだジャングルの原木",
     "category": "原木",
-    "kind": "normal"
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:stripped_jungle_wood",
     "nameJa": "樹皮を剥いだジャングルの木",
-    "category": "木材",
-    "kind": "normal"
+    "category": "原木",
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:stripped_mangrove_log",
     "nameJa": "樹皮を剥いだマングローブの原木",
     "category": "原木",
-    "kind": "normal"
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:stripped_mangrove_wood",
     "nameJa": "樹皮を剥いだマングローブの木",
-    "category": "木材",
-    "kind": "normal"
+    "category": "原木",
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:stripped_oak_log",
     "nameJa": "樹皮を剥いだオークの原木",
     "category": "原木",
-    "kind": "normal"
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:stripped_oak_wood",
     "nameJa": "樹皮を剥いだオークの木",
-    "category": "木材",
-    "kind": "normal"
+    "category": "原木",
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:stripped_pale_oak_log",
     "nameJa": "樹皮を剥いだペールオークの原木",
     "category": "原木",
-    "kind": "normal"
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:stripped_pale_oak_wood",
     "nameJa": "樹皮を剥いだペールオークの木",
-    "category": "木材",
-    "kind": "normal"
+    "category": "原木",
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:stripped_spruce_log",
     "nameJa": "樹皮を剥いだトウヒの原木",
     "category": "原木",
-    "kind": "normal"
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:stripped_spruce_wood",
     "nameJa": "樹皮を剥いだトウヒの木",
-    "category": "木材",
-    "kind": "normal"
+    "category": "原木",
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:stripped_warped_hyphae",
     "nameJa": "表皮を剥いだ歪んだ菌糸",
     "category": "原木",
-    "kind": "normal"
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:stripped_warped_stem",
     "nameJa": "表皮を剥いだ歪んだ幹",
     "category": "原木",
-    "kind": "normal"
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:structure_block",
@@ -11772,7 +11916,10 @@
     "id": "minecraft:warped_hyphae",
     "nameJa": "歪んだ菌糸",
     "category": "原木",
-    "kind": "normal"
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:warped_nylium",
@@ -11834,7 +11981,10 @@
     "id": "minecraft:warped_stem",
     "nameJa": "歪んだ幹",
     "category": "原木",
-    "kind": "normal"
+    "kind": "log",
+    "defaultProperties": {
+      "axis": "y"
+    }
   },
   {
     "id": "minecraft:warped_trapdoor",
