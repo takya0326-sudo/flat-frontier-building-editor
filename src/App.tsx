@@ -631,12 +631,13 @@ function App() {
         setMessage('読み込むJSONを入力してください。');
         return;
       }
-      const imported = normalizeTemplate(JSON.parse(value));
+      const parsed = JSON.parse(value);
+      const imported = normalizeTemplate(Array.isArray(parsed) ? { blocks: parsed } : parsed);
       setTemplate(imported);
       setSelectedBlockKey(null);
       setJsonText(JSON.stringify(imported, null, 2));
       setActiveTab('edit');
-      setMessage('JSONを読み込みました。再編集できます。');
+      setMessage(`JSONを読み込みました。blocks: ${imported.blocks.length}、markers: ${imported.markers.length}`);
     } catch (error) {
       const detail = error instanceof Error ? error.message : '不明なエラー';
       setMessage(`JSONの読み込みに失敗しました: ${detail}`);
@@ -1896,17 +1897,21 @@ function WallDirections({ block, onChange }: { block: Block; onChange: (name: st
 
 function normalizeTemplate(value: Partial<BuildingTemplate> & Record<string, unknown>): BuildingTemplate {
   const rawSize = value.size as Partial<Vec3> | undefined;
-  const size = sanitizeVec3(rawSize, defaultTemplate.size, 1, 64);
-  const reserved_area = sanitizeVec3(value.reserved_area as Partial<Vec3> | undefined, size, 1, 96);
-  const blocks = Array.isArray(value.blocks)
+  const declaredSize = sanitizeVec3(rawSize, defaultTemplate.size, 1, 64);
+  const rawBlocks = Array.isArray(value.blocks)
     ? value.blocks
       .map(normalizeBlock)
       .filter((block): block is Block => block !== null)
-      .filter((block) => isInside(block, size))
     : [];
-  const markers = Array.isArray(value.markers)
-    ? value.markers.filter((marker): marker is Marker => isMarker(marker) && isInside(marker, size, true))
+  const rawMarkers = Array.isArray(value.markers)
+    ? value.markers
+      .map(normalizeMarker)
+      .filter((marker): marker is Marker => marker !== null)
     : [];
+  const size = expandSizeForContent(declaredSize, rawBlocks, rawMarkers);
+  const reserved_area = sanitizeVec3(value.reserved_area as Partial<Vec3> | undefined, size, 1, 96);
+  const blocks = rawBlocks.filter((block) => isInside(block, size));
+  const markers = rawMarkers.filter((marker) => isInside(marker, size, true));
 
   return {
     building_id: String(value.building_id ?? defaultTemplate.building_id),
@@ -1931,16 +1936,35 @@ function normalizeTemplate(value: Partial<BuildingTemplate> & Record<string, unk
 function normalizeBlock(value: unknown): Block | null {
   if (!value || typeof value !== 'object') return null;
   const raw = value as Record<string, unknown>;
-  const blockId = String(raw.block ?? raw.block_id ?? '');
+  const rawBlockId = String(raw.block ?? raw.block_id ?? raw.id ?? raw.name ?? '');
+  const blockId = normalizeBlockId(rawBlockId);
   if (!blockId) return null;
+  const position = readPosition(raw);
   const blockOption = findBlockOptionFromCatalog(blockId, staticBlockCatalog);
-  const rawProperties = raw.properties as Record<string, unknown> | undefined;
+  const rawProperties = {
+    ...parseBlockStateProperties(rawBlockId),
+    ...(raw.properties && typeof raw.properties === 'object' ? raw.properties as Record<string, unknown> : {}),
+  };
   return {
-    x: normalizeInt(Number(raw.x), 0, 128),
-    y: normalizeInt(Number(raw.y), 0, 128),
-    z: normalizeInt(Number(raw.z), 0, 128),
+    x: normalizeInt(Number(position.x), 0, 128),
+    y: normalizeInt(Number(position.y), 0, 128),
+    z: normalizeInt(Number(position.z), 0, 128),
     block: blockId,
     properties: normalizeProperties(blockOption, rawProperties),
+  };
+}
+
+function normalizeMarker(value: unknown): Marker | null {
+  if (!value || typeof value !== 'object') return null;
+  const raw = value as Record<string, unknown>;
+  const type = raw.type ?? raw.marker ?? raw.marker_type;
+  if (!isMarkerType(type)) return null;
+  const position = readPosition(raw);
+  return {
+    type,
+    x: normalizeInt(Number(position.x), 0, 128),
+    y: normalizeInt(Number(position.y), 0, 128),
+    z: normalizeInt(Number(position.z), -1, 128),
   };
 }
 
@@ -2250,12 +2274,73 @@ function isInside(position: Vec3, size: Vec3, allowGroundEdge = false) {
   );
 }
 
-function sanitizeVec3(value: Partial<Vec3> | undefined, fallback: Vec3, min: number, max: number): Vec3 {
+function sanitizeVec3(value: unknown, fallback: Vec3, min: number, max: number): Vec3 {
+  if (Array.isArray(value)) {
+    return {
+      x: normalizeInt(Number(value[0] ?? fallback.x), min, max),
+      y: normalizeInt(Number(value[1] ?? fallback.y), min, max),
+      z: normalizeInt(Number(value[2] ?? fallback.z), min, max),
+    };
+  }
+  const vector = value && typeof value === 'object' ? value as Partial<Vec3> : undefined;
   return {
-    x: normalizeInt(Number(value?.x ?? fallback.x), min, max),
-    y: normalizeInt(Number(value?.y ?? fallback.y), min, max),
-    z: normalizeInt(Number(value?.z ?? fallback.z), min, max),
+    x: normalizeInt(Number(vector?.x ?? fallback.x), min, max),
+    y: normalizeInt(Number(vector?.y ?? fallback.y), min, max),
+    z: normalizeInt(Number(vector?.z ?? fallback.z), min, max),
   };
+}
+
+function readPosition(raw: Record<string, unknown>): Vec3 {
+  const nested = raw.position ?? raw.pos ?? raw.offset;
+  if (Array.isArray(nested)) {
+    return {
+      x: Number(nested[0] ?? raw.x ?? 0),
+      y: Number(nested[1] ?? raw.y ?? 0),
+      z: Number(nested[2] ?? raw.z ?? 0),
+    };
+  }
+  if (nested && typeof nested === 'object') {
+    const position = nested as Partial<Vec3>;
+    return {
+      x: Number(position.x ?? raw.x ?? 0),
+      y: Number(position.y ?? raw.y ?? 0),
+      z: Number(position.z ?? raw.z ?? 0),
+    };
+  }
+  return {
+    x: Number(raw.x ?? 0),
+    y: Number(raw.y ?? 0),
+    z: Number(raw.z ?? 0),
+  };
+}
+
+function expandSizeForContent(size: Vec3, blocks: Block[], markers: Marker[]): Vec3 {
+  const maxPosition = [...blocks, ...markers].reduce<Vec3>((max, item) => ({
+    x: Math.max(max.x, item.x + 1),
+    y: Math.max(max.y, item.y + 1),
+    z: Math.max(max.z, item.z + 1),
+  }), size);
+  return {
+    x: normalizeInt(maxPosition.x, 1, 64),
+    y: normalizeInt(maxPosition.y, 1, 64),
+    z: normalizeInt(maxPosition.z, 1, 64),
+  };
+}
+
+function normalizeBlockId(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  const withoutState = trimmed.split('[')[0];
+  return withoutState.includes(':') ? withoutState : `minecraft:${withoutState}`;
+}
+
+function parseBlockStateProperties(value: string) {
+  const match = value.match(/\[([^\]]+)\]/);
+  if (!match) return {};
+  return Object.fromEntries(match[1].split(',').map((entry) => {
+    const [key, propertyValue = ''] = entry.split('=');
+    return [key.trim(), propertyValue.trim()];
+  }).filter(([key]) => key));
 }
 
 function sanitizeFileName(value: string) {
