@@ -140,6 +140,20 @@ const clamp = (value: number, min: number, max: number) => Math.max(min, Math.mi
 const normalizeInt = (value: number, min = 0, max = 128) => clamp(Math.round(value || 0), min, max);
 const staticBlockCatalog = [...fallbackVanillaBlocks, ...flatFrontierBlocks];
 const minecraftFaceMaterialOrder: MinecraftFaceName[] = ['east', 'west', 'up', 'down', 'south', 'north'];
+const supportedMinecraftModelBlocks = new Set([
+  'minecraft:oak_planks',
+  'minecraft:oak_log',
+  'minecraft:spruce_planks',
+  'minecraft:spruce_stairs',
+  'minecraft:oak_slab',
+  'minecraft:glass_pane',
+  'minecraft:oak_door',
+  'minecraft:lantern',
+  'minecraft:lever',
+  'minecraft:oak_button',
+  'minecraft:oak_fence',
+  'minecraft:oak_fence_gate',
+]);
 
 function App() {
   const [template, setTemplate] = useState<BuildingTemplate>(() => normalizeTemplate(defaultTemplate));
@@ -1610,7 +1624,7 @@ function BlockShape({
   modelMap: ModelMap;
   textureMap: TextureMap;
 }) {
-  const modelApplications = blockstate ? resolveBlockstateModels(block, blockstate, modelMap) : [];
+  const modelApplications = blockstate && shouldUseMinecraftModel(block.block) ? resolveBlockstateModels(block, blockstate, modelMap) : [];
   if (modelApplications.length > 0) return <MinecraftModelShape applications={modelApplications} textureMap={textureMap} selected={selected} />;
   if (blockOption.kind === 'log' || isLogBlockId(block.block)) return <LogShape block={block} selected={selected} textures={logTextures} />;
   if (blockOption.kind === 'slab') return <SlabShape block={block} color={blockOption.color} selected={selected} texture={texture} />;
@@ -1680,6 +1694,7 @@ function MinecraftModelShape({ applications, textureMap, selected }: { applicati
 }
 
 function MinecraftModelElement({ element, textures, textureMap, selected }: { element: MinecraftElement; textures: Record<string, string>; textureMap: TextureMap; selected: boolean }) {
+  if (!isValidMinecraftElement(element)) return null;
   const from = element.from;
   const to = element.to;
   const size: [number, number, number] = [
@@ -2244,6 +2259,10 @@ function findBlockstateForBlock(blockId: string, blockstateMap: BlockstateMap) {
   return blockstateMap.get(blockId.slice('minecraft:'.length));
 }
 
+function shouldUseMinecraftModel(blockId: string) {
+  return supportedMinecraftModelBlocks.has(blockId);
+}
+
 function resolveBlockstateModels(block: Block, blockstate: MinecraftBlockstate, modelMap: ModelMap): ResolvedMinecraftModel[] {
   const variants = selectMinecraftVariants(block, blockstate);
   return variants.flatMap((variant) => {
@@ -2259,6 +2278,20 @@ function resolveBlockstateModels(block: Block, blockstate: MinecraftBlockstate, 
       ] as [number, number, number],
     }];
   });
+}
+
+function isValidMinecraftElement(element: MinecraftElement) {
+  return (
+    Array.isArray(element.from) &&
+    Array.isArray(element.to) &&
+    element.from.length === 3 &&
+    element.to.length === 3 &&
+    element.from.every(Number.isFinite) &&
+    element.to.every(Number.isFinite) &&
+    element.to[0] > element.from[0] &&
+    element.to[1] > element.from[1] &&
+    element.to[2] > element.from[2]
+  );
 }
 
 function selectMinecraftVariants(block: Block, blockstate: MinecraftBlockstate): MinecraftVariant[] {
