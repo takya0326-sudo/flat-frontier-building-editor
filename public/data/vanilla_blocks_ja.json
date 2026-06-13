@@ -5914,7 +5914,8 @@
     "category": "光源",
     "kind": "lantern",
     "defaultProperties": {
-      "hanging": "false"
+      "hanging": "false",
+      "waterlogged": "false"
     }
   },
   {
@@ -7056,7 +7057,8 @@
     "category": "光源",
     "kind": "lantern",
     "defaultProperties": {
-      "hanging": "false"
+      "hanging": "false",
+      "waterlogged": "false"
     }
   },
   {
@@ -7645,7 +7647,8 @@
     "category": "光源",
     "kind": "lantern",
     "defaultProperties": {
-      "hanging": "false"
+      "hanging": "false",
+      "waterlogged": "false"
     }
   },
   {
@@ -7834,7 +7837,11 @@
     "id": "minecraft:lantern",
     "nameJa": "ランタン",
     "category": "光源",
-    "kind": "normal"
+    "kind": "lantern",
+    "defaultProperties": {
+      "hanging": "false",
+      "waterlogged": "false"
+    }
   },
   {
     "id": "minecraft:lapis_block",
@@ -9071,7 +9078,8 @@
     "category": "光源",
     "kind": "lantern",
     "defaultProperties": {
-      "hanging": "false"
+      "hanging": "false",
+      "waterlogged": "false"
     }
   },
   {
@@ -10738,7 +10746,8 @@
     "category": "光源",
     "kind": "lantern",
     "defaultProperties": {
-      "hanging": "false"
+      "hanging": "false",
+      "waterlogged": "false"
     }
   },
   {
@@ -10960,7 +10969,8 @@
     "category": "光源",
     "kind": "lantern",
     "defaultProperties": {
-      "hanging": "false"
+      "hanging": "false",
+      "waterlogged": "false"
     }
   },
   {
@@ -12097,7 +12107,8 @@
     "category": "光源",
     "kind": "lantern",
     "defaultProperties": {
-      "hanging": "false"
+      "hanging": "false",
+      "waterlogged": "false"
     }
   },
   {
@@ -12204,7 +12215,8 @@
     "category": "光源",
     "kind": "lantern",
     "defaultProperties": {
-      "hanging": "false"
+      "hanging": "false",
+      "waterlogged": "false"
     }
   },
   {
@@ -12323,7 +12335,8 @@
     "category": "光源",
     "kind": "lantern",
     "defaultProperties": {
-      "hanging": "false"
+      "hanging": "false",
+      "waterlogged": "false"
     }
   },
   {
@@ -12436,7 +12449,8 @@
     "category": "光源",
     "kind": "lantern",
     "defaultProperties": {
-      "hanging": "false"
+      "hanging": "false",
+      "waterlogged": "false"
     }
   },
   {
@@ -12549,7 +12563,8 @@
     "category": "光源",
     "kind": "lantern",
     "defaultProperties": {
-      "hanging": "false"
+      "hanging": "false",
+      "waterlogged": "false"
     }
   },
   {

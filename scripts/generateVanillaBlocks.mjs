@@ -72,7 +72,7 @@ function inferKind(id) {
   if (id.endsWith('_wall_torch') || id === 'minecraft:redstone_wall_torch') return 'wall_torch';
   if (id.endsWith('_button')) return 'button';
   if (id.endsWith('_stairs')) return 'stairs';
-  if (id.endsWith('_lantern')) return 'lantern';
+  if (id === 'minecraft:lantern' || id.endsWith('_lantern')) return 'lantern';
   if (id.endsWith('_torch')) return 'torch';
   if (id.endsWith('_carpet')) return 'carpet';
   if (id.endsWith('_bed')) return 'bed';
@@ -102,7 +102,7 @@ function defaultPropertiesFor(kind) {
   if (kind === 'trapdoor') return { facing: 'south', half: 'bottom', open: 'false' };
   if (kind === 'button') return { face: 'wall', facing: 'south', powered: 'false' };
   if (kind === 'wall_torch') return { facing: 'south' };
-  if (kind === 'lantern') return { hanging: 'false' };
+  if (kind === 'lantern') return { hanging: 'false', waterlogged: 'false' };
   if (kind === 'wall_sign') return { facing: 'south' };
   return undefined;
 }

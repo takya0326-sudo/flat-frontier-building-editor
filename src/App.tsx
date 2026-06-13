@@ -1114,10 +1114,13 @@ function App() {
                   </>
                 )}
                 {selectedPlacedOption.kind === 'lantern' && (
-                  <label className="checkRow">
-                    <input type="checkbox" checked={getBooleanProperty(selectedPlacedBlock, 'hanging', false)} onChange={(event) => setSelectedStringProperty('hanging', String(event.target.checked))} />
-                    吊り下げ hanging
-                  </label>
+                  <>
+                    <label className="checkRow">
+                      <input type="checkbox" checked={getBooleanProperty(selectedPlacedBlock, 'hanging', false)} onChange={(event) => setSelectedStringProperty('hanging', String(event.target.checked))} />
+                      吊り下げ hanging
+                    </label>
+                    <p>waterlogged: {getProperty(selectedPlacedBlock, 'waterlogged', 'false')}</p>
+                  </>
                 )}
                 <button className="wideButton dangerButton" onClick={deleteSelectedBlock}>選択ブロックを削除</button>
               </>
@@ -1721,13 +1724,34 @@ function TorchShape({ selected, wall = false, block }: { selected: boolean; wall
 
 function LanternShape({ block, color, selected, texture }: { block: Block; color: string; selected: boolean; texture?: THREE.Texture }) {
   const hanging = getBooleanProperty(block, 'hanging', false);
+  const soul = block.block.includes('soul_lantern');
+  const frameColor = soul ? '#164e63' : '#5b3a1d';
+  const glowColor = soul ? '#22d3ee' : '#fbbf24';
+  const glowEmissive = soul ? '#06b6d4' : '#f59e0b';
+  const centerY = hanging ? 0.2 : -0.22;
   return (
     <group>
-      {hanging && <ThinBox color="#374151" selected={selected} args={[0.08, 0.36, 0.08]} position={[0, 0.32, 0]} />}
-      <ThinBox color={color} selected={selected} texture={texture} args={[0.42, 0.52, 0.42]} position={[0, hanging ? -0.05 : -0.24, 0]} />
-      <mesh position={[0, hanging ? -0.05 : -0.24, 0]}>
-        <boxGeometry args={[0.26, 0.34, 0.26]} />
-        <meshStandardMaterial color="#fbbf24" emissive="#f59e0b" emissiveIntensity={0.28} transparent opacity={0.78} />
+      {hanging && <ThinBox color={frameColor} selected={selected} args={[0.06, 0.28, 0.06]} position={[0, 0.42, 0]} />}
+      <ThinBox color={frameColor} selected={selected} args={[0.28, 0.05, 0.28]} position={[0, centerY + 0.28, 0]} />
+      <ThinBox color={frameColor} selected={selected} args={[0.34, 0.06, 0.34]} position={[0, centerY - 0.27, 0]} />
+      <ThinBox color={frameColor} selected={selected} args={[0.05, 0.48, 0.05]} position={[0.18, centerY, 0.18]} />
+      <ThinBox color={frameColor} selected={selected} args={[0.05, 0.48, 0.05]} position={[-0.18, centerY, 0.18]} />
+      <ThinBox color={frameColor} selected={selected} args={[0.05, 0.48, 0.05]} position={[0.18, centerY, -0.18]} />
+      <ThinBox color={frameColor} selected={selected} args={[0.05, 0.48, 0.05]} position={[-0.18, centerY, -0.18]} />
+      <mesh position={[0, centerY, 0]}>
+        <boxGeometry args={[0.25, 0.36, 0.25]} />
+        <meshStandardMaterial
+          color={texture ? '#ffffff' : glowColor}
+          map={texture}
+          emissive={glowEmissive}
+          emissiveIntensity={0.55}
+          transparent
+          opacity={0.82}
+        />
+      </mesh>
+      <mesh position={[0, centerY + 0.34, 0]}>
+        <torusGeometry args={[0.16, 0.018, 8, 24]} />
+        <meshStandardMaterial color={frameColor} emissive={selected ? '#facc15' : '#000000'} emissiveIntensity={selected ? 0.12 : 0} />
       </mesh>
     </group>
   );
@@ -1773,6 +1797,7 @@ function DoorShape({ block, color, selected, texture }: { block: Block; color: s
   const facing = getFacing(block);
   const open = getBooleanProperty(block, 'open', false);
   const hinge = getProperty(block, 'hinge', 'left') === 'right' ? 'right' : 'left';
+  const half = getProperty(block, 'half', 'lower');
   const closedPanels: Record<Direction, { args: [number, number, number]; position: [number, number, number] }> = {
     north: { args: [0.94, 1, 0.1], position: [0, 0, -0.45] },
     south: { args: [0.94, 1, 0.1], position: [0, 0, 0.45] },
@@ -1798,7 +1823,30 @@ function DoorShape({ block, color, selected, texture }: { block: Block; color: s
     },
   };
   const panel = open ? openPanels[facing][hinge] : closedPanels[facing];
-  return <ThinBox color={color} selected={selected} texture={texture} args={panel.args} position={panel.position} />;
+  const isXWide = panel.args[0] > panel.args[2];
+  const detailOffset = isXWide ? [0, 0, Math.sign(panel.position[2] || 1) * 0.056] : [Math.sign(panel.position[0] || 1) * 0.056, 0, 0];
+  const windowArgs: [number, number, number] = isXWide ? [0.38, 0.32, 0.012] : [0.012, 0.32, 0.38];
+  const handleArgs: [number, number, number] = isXWide ? [0.08, 0.08, 0.03] : [0.03, 0.08, 0.08];
+  const windowPosition: [number, number, number] = [
+    panel.position[0] + detailOffset[0],
+    panel.position[1] + 0.16 + detailOffset[1],
+    panel.position[2] + detailOffset[2],
+  ];
+  const handleSide = hinge === 'left' ? 0.24 : -0.24;
+  const handlePosition: [number, number, number] = isXWide
+    ? [panel.position[0] + handleSide, panel.position[1] - 0.08, panel.position[2] + detailOffset[2] * 1.4]
+    : [panel.position[0] + detailOffset[0] * 1.4, panel.position[1] - 0.08, panel.position[2] + handleSide];
+  return (
+    <group>
+      <ThinBox color={color} selected={selected} texture={texture} args={panel.args} position={panel.position} />
+      {half === 'upper' && (
+        <ThinBox color="#93c5fd" selected={selected} args={windowArgs} position={windowPosition} transparent />
+      )}
+      {half !== 'upper' && (
+        <ThinBox color="#facc15" selected={selected} args={handleArgs} position={handlePosition} />
+      )}
+    </group>
+  );
 }
 
 function TrapdoorShape({ block, color, selected, texture }: { block: Block; color: string; selected: boolean; texture?: THREE.Texture }) {
@@ -2175,7 +2223,7 @@ function defaultPropertiesForKind(kind: BlockOption['kind']): Record<string, str
   if (kind === 'button') return { face: 'wall', facing: 'south', powered: 'false' };
   if (kind === 'fence_gate') return { facing: 'south', open: 'false' };
   if (kind === 'wall_torch' || kind === 'wall_sign') return { facing: 'south' };
-  if (kind === 'lantern') return { hanging: 'false' };
+  if (kind === 'lantern') return { hanging: 'false', waterlogged: 'false' };
   if (kind === 'fence' || kind === 'pane') return { north: 'false', east: 'false', south: 'false', west: 'false' };
   if (kind === 'wall') return { north: 'none', east: 'none', south: 'none', west: 'none', up: 'true' };
   return undefined;

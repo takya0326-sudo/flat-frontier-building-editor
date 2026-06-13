@@ -93,6 +93,7 @@ React + Vite + TypeScript + React Three Fiber で作成しています。サー�
 `_door` のブロックは通常の 1×1×1 立方体ではなく、Minecraft のドアに近い薄い縦板として表示します。
 配置時に上側の空間が空いていれば、`half: lower` と `half: upper` の 2 つの block entry を上下に並べて配置します。
 JSON 互換性のため、ドアは lower と upper を別々の entry として保存します。
+`half: lower` は取っ手のある下側、`half: upper` は窓表現のある上側として表示します。
 
 ### ドアの向き変更と開閉
 
@@ -100,6 +101,13 @@ JSON 互換性のため、ドアは lower と upper を別々の entry として
 「左回転」「右回転」または `R` / `Shift + R` で `facing` を変更できます。
 `open` をオンにすると、`hinge` を基準に開いた状態の薄板表示になります。
 `powered` は Ver.0.1 では JSON 保存用の値として `false` を基本に扱います。
+
+### ランタンブロックの表示
+
+`minecraft:lantern` と `minecraft:soul_lantern` は通常の 1×1×1 立方体ではなく、小型の装飾ブロックとして表示します。
+`hanging: false` の場合はブロック空間の下側に置かれたランタン、`hanging: true` の場合は上側から吊り下がったランタンとして表示します。
+通常ランタンは暖色系、魂のランタンは青緑系の発光表現を使います。
+選択中ブロックの properties で `hanging` を切り替えられ、`waterlogged` は JSON 保存用に `false` を基本値として扱います。
 
 ### 3Dビューの操作方法
 
