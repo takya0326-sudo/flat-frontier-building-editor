@@ -165,14 +165,14 @@ Minecraft jar / resource pack zip からテクスチャを読み込んでいる�
 
 このエディタには Minecraft 公式テクスチャを同梱しません。
 3D ビューではブロック種別を色分けで表示し、MOD 側で読み込める建物 JSON を正確に作成することを優先しています。
-ローカルの Minecraft jar または resource pack zip をブラウザで選択すると、`assets/minecraft/textures/block/` 内の PNG を一時的に読み込み、3D プレビューに使えます。
-読み込んだテクスチャは外部送信せず、GitHubにも保存しません。
+ローカルの Minecraft jar または resource pack zip をブラウザで選択すると、`assets/minecraft/blockstates/`、`assets/minecraft/models/block/`、`assets/minecraft/textures/block/` を一時的に読み込み、3D プレビューに使えます。
+読み込んだ blockstates / models / textures は外部送信せず、GitHubにも保存しません。
 JSONにも画像は含めず、`block id` と `properties` のみ保存します。
 
 ### 装飾系ブロックの表示
 
-ボタン、松明、ランタン、フェンス、壁、ドア、トラップドア、板ガラス、カーペット、看板、植物、液体、レールなどは、通常の 1×1×1 立方体ではなく、`kind` に応じた簡易形状で表示します。
-テクスチャが見つからない場合は、これまで通り色分け表示にフォールバックします。
+Minecraft jar / resource pack zip を読み込んでいる場合は、blockstates と block model の `elements` / `faces` / texture 変数を解決して表示します。
+まずは代表的なブロックを優先対応しており、対応できないブロックやモデル解決できないブロックは、これまで通り `kind` に応じた簡易形状や色分け表示にフォールバックします。
 
 ## 起動方法
 

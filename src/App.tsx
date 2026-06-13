@@ -42,6 +42,31 @@ type TextureMap = Map<string, THREE.Texture>;
 type LogAxis = 'x' | 'y' | 'z';
 type LogTextureSet = { side?: THREE.Texture; end?: THREE.Texture };
 type PanelTab = 'building' | 'block' | 'edit' | 'range' | 'json';
+type BlockstateMap = Map<string, MinecraftBlockstate>;
+type ModelMap = Map<string, MinecraftModel>;
+type MinecraftBlockstate = {
+  variants?: Record<string, MinecraftVariant | MinecraftVariant[]>;
+  multipart?: Array<{ when?: unknown; apply: MinecraftVariant | MinecraftVariant[] }>;
+};
+type MinecraftVariant = { model: string; x?: number; y?: number; uvlock?: boolean; weight?: number };
+type MinecraftModel = {
+  parent?: string;
+  textures?: Record<string, string>;
+  elements?: MinecraftElement[];
+};
+type MinecraftElement = {
+  from: [number, number, number];
+  to: [number, number, number];
+  rotation?: { origin: [number, number, number]; axis: 'x' | 'y' | 'z'; angle: number; rescale?: boolean };
+  faces?: Partial<Record<MinecraftFaceName, MinecraftFace>>;
+};
+type MinecraftFaceName = 'north' | 'south' | 'east' | 'west' | 'up' | 'down';
+type MinecraftFace = { texture?: string; uv?: [number, number, number, number]; cullface?: string; rotation?: number; tintindex?: number };
+type ResolvedMinecraftModel = {
+  elements: MinecraftElement[];
+  textures: Record<string, string>;
+  rotation: [number, number, number];
+};
 
 const directionLabels: Record<Direction, string> = {
   north: '北',
@@ -114,6 +139,7 @@ const keyOf = (position: Vec3) => `${position.x}:${position.y}:${position.z}`;
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 const normalizeInt = (value: number, min = 0, max = 128) => clamp(Math.round(value || 0), min, max);
 const staticBlockCatalog = [...fallbackVanillaBlocks, ...flatFrontierBlocks];
+const minecraftFaceMaterialOrder: MinecraftFaceName[] = ['east', 'west', 'up', 'down', 'south', 'north'];
 
 function App() {
   const [template, setTemplate] = useState<BuildingTemplate>(() => normalizeTemplate(defaultTemplate));
@@ -143,7 +169,9 @@ function App() {
   const [jsonText, setJsonText] = useState('');
   const [message, setMessage] = useState('空きマスをクリックするとブロックを配置できます。');
   const [textureMap, setTextureMap] = useState<TextureMap>(() => new Map());
-  const [textureStatus, setTextureStatus] = useState('テクスチャ未読込');
+  const [blockstateMap, setBlockstateMap] = useState<BlockstateMap>(() => new Map());
+  const [modelMap, setModelMap] = useState<ModelMap>(() => new Map());
+  const [textureStatus, setTextureStatus] = useState('Minecraft jar / resource pack 未読込');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const textureInputRef = useRef<HTMLInputElement | null>(null);
   const textureObjectUrlsRef = useRef<string[]>([]);
@@ -211,19 +239,19 @@ function App() {
   const loadTextureArchive = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    setTextureStatus('テクスチャを読み込み中...');
+    setTextureStatus('Minecraft jar / resource pack を読み込み中...');
     try {
       textureObjectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
       textureObjectUrlsRef.current = [];
       const zip = await JSZip.loadAsync(await file.arrayBuffer());
       const loader = new THREE.TextureLoader();
-      const entries = Object.entries(zip.files).filter(([path, entry]) => (
+      const textureEntries = Object.entries(zip.files).filter(([path, entry]) => (
         !entry.dir &&
         path.startsWith('assets/minecraft/textures/block/') &&
         path.endsWith('.png')
       ));
       const nextMap: TextureMap = new Map();
-      await Promise.all(entries.map(async ([path, entry]) => {
+      await Promise.all(textureEntries.map(async ([path, entry]) => {
         const blob = await entry.async('blob');
         const url = URL.createObjectURL(blob);
         textureObjectUrlsRef.current.push(url);
@@ -234,10 +262,25 @@ function App() {
         texture.minFilter = THREE.NearestMipmapNearestFilter;
         nextMap.set(name, texture);
       }));
+      const nextBlockstates: BlockstateMap = new Map();
+      const nextModels: ModelMap = new Map();
+      await Promise.all(Object.entries(zip.files).map(async ([path, entry]) => {
+        if (entry.dir || !path.endsWith('.json')) return;
+        if (path.startsWith('assets/minecraft/blockstates/')) {
+          const name = path.slice('assets/minecraft/blockstates/'.length, -'.json'.length);
+          nextBlockstates.set(name, JSON.parse(await entry.async('text')));
+        }
+        if (path.startsWith('assets/minecraft/models/block/')) {
+          const name = path.slice('assets/minecraft/models/block/'.length, -'.json'.length);
+          nextModels.set(`block/${name}`, JSON.parse(await entry.async('text')));
+        }
+      }));
       setTextureMap(nextMap);
-      setTextureStatus(`${file.name} から ${nextMap.size} 件のブロックテクスチャを読み込みました。`);
+      setBlockstateMap(nextBlockstates);
+      setModelMap(nextModels);
+      setTextureStatus(`${file.name}: textures ${nextMap.size} / blockstates ${nextBlockstates.size} / models ${nextModels.size} を読み込みました。`);
     } catch (error) {
-      setTextureStatus('テクスチャの読み込みに失敗しました。jar または zip を確認してください。');
+      setTextureStatus('Minecraft jar / resource pack の読み込みに失敗しました。ファイルを確認してください。');
     } finally {
       event.target.value = '';
     }
@@ -847,7 +890,7 @@ function App() {
         </section>
 
         <section className={activeTab === 'block' ? 'panelSection active' : 'panelSection'}>
-          <h2>テクスチャ読込</h2>
+          <h2>モデル / テクスチャ読込</h2>
           <div className="jsonActions">
             <button onClick={() => textureInputRef.current?.click()}>
               <FileUp size={16} />
@@ -856,7 +899,7 @@ function App() {
             <input ref={textureInputRef} type="file" accept=".jar,.zip,application/zip" onChange={loadTextureArchive} hidden />
           </div>
           <p className="helpText">{textureStatus}</p>
-          <p className="helpText">読み込んだ画像はブラウザ内の3Dプレビューだけで使い、JSONには保存しません。</p>
+          <p className="helpText">blockstates / models / textures をブラウザ内だけで使い、JSONには保存しません。未対応ブロックは簡易表示へフォールバックします。</p>
         </section>
 
         <section className={activeTab === 'block' ? 'panelSection active' : 'panelSection'}>
@@ -1258,6 +1301,8 @@ function App() {
             selectedBlockOption={selectedBlockOption}
             size={template.size}
             textureMap={textureMap}
+            blockstateMap={blockstateMap}
+            modelMap={modelMap}
             viewPreset={viewPreset}
             cameraResetKey={cameraResetKey}
             onCellClick={handleCellClick}
@@ -1282,6 +1327,8 @@ function EditorScene({
   selectedBlockOption,
   blockMap,
   textureMap,
+  blockstateMap,
+  modelMap,
   viewPreset,
   cameraResetKey,
   onCellClick,
@@ -1299,6 +1346,8 @@ function EditorScene({
   selectedBlockOption: BlockOption;
   blockMap: Map<string, Block>;
   textureMap: TextureMap;
+  blockstateMap: BlockstateMap;
+  modelMap: ModelMap;
   viewPreset: ViewPreset;
   cameraResetKey: number;
   onCellClick: (position: Vec3) => void;
@@ -1360,6 +1409,9 @@ function EditorScene({
             selected={selectedBlockKey === keyOf(block)}
             texture={findTextureForBlock(block.block, textureMap)}
             logTextures={findLogTextures(block.block, textureMap)}
+            blockstate={findBlockstateForBlock(block.block, blockstateMap)}
+            modelMap={modelMap}
+            textureMap={textureMap}
             onClick={(adjacent) => onBlockClick(block, adjacent)}
             onSelect={() => onBlockSelect(block)}
             onHover={(adjacent) => onPreviewChange(mode === 'block' && isInside(adjacent, size) && !blockMap.has(keyOf(adjacent)) ? adjacent : null)}
@@ -1489,6 +1541,9 @@ function BlockMesh({
   selected,
   texture,
   logTextures,
+  blockstate,
+  modelMap,
+  textureMap,
   onClick,
   onSelect,
   onHover,
@@ -1498,6 +1553,9 @@ function BlockMesh({
   selected: boolean;
   texture?: THREE.Texture;
   logTextures?: LogTextureSet;
+  blockstate?: MinecraftBlockstate;
+  modelMap: ModelMap;
+  textureMap: TextureMap;
   onClick: (adjacent: Vec3) => void;
   onSelect: () => void;
   onHover: (adjacent: Vec3) => void;
@@ -1528,12 +1586,32 @@ function BlockMesh({
         onHover(adjacentFromEvent(event));
       }}
     >
-      <BlockShape block={block} blockOption={paletteBlock} selected={selected} texture={texture} logTextures={logTextures} />
+      <BlockShape block={block} blockOption={paletteBlock} selected={selected} texture={texture} logTextures={logTextures} blockstate={blockstate} modelMap={modelMap} textureMap={textureMap} />
     </group>
   );
 }
 
-function BlockShape({ block, blockOption, selected, texture, logTextures }: { block: Block; blockOption: BlockOption; selected: boolean; texture?: THREE.Texture; logTextures?: LogTextureSet }) {
+function BlockShape({
+  block,
+  blockOption,
+  selected,
+  texture,
+  logTextures,
+  blockstate,
+  modelMap,
+  textureMap,
+}: {
+  block: Block;
+  blockOption: BlockOption;
+  selected: boolean;
+  texture?: THREE.Texture;
+  logTextures?: LogTextureSet;
+  blockstate?: MinecraftBlockstate;
+  modelMap: ModelMap;
+  textureMap: TextureMap;
+}) {
+  const modelApplications = blockstate ? resolveBlockstateModels(block, blockstate, modelMap) : [];
+  if (modelApplications.length > 0) return <MinecraftModelShape applications={modelApplications} textureMap={textureMap} selected={selected} />;
   if (blockOption.kind === 'log' || isLogBlockId(block.block)) return <LogShape block={block} selected={selected} textures={logTextures} />;
   if (blockOption.kind === 'slab') return <SlabShape block={block} color={blockOption.color} selected={selected} texture={texture} />;
   if (blockOption.kind === 'stairs') return <StairShapeMesh block={block} color={blockOption.color} selected={selected} texture={texture} />;
@@ -1576,6 +1654,68 @@ function BoxShape({ color, selected, transparent = false, texture }: { color: st
     <mesh castShadow receiveShadow>
       <boxGeometry args={[1, 1, 1]} />
       <Material color={color} selected={selected} transparent={transparent} texture={texture} />
+      <Edges color={selected ? '#facc15' : '#1f2937'} />
+    </mesh>
+  );
+}
+
+function MinecraftModelShape({ applications, textureMap, selected }: { applications: ResolvedMinecraftModel[]; textureMap: TextureMap; selected: boolean }) {
+  return (
+    <group>
+      {applications.map((application, appIndex) => (
+        <group key={appIndex} rotation={application.rotation}>
+          {application.elements.map((element, elementIndex) => (
+            <MinecraftModelElement
+              key={`${appIndex}-${elementIndex}`}
+              element={element}
+              textures={application.textures}
+              textureMap={textureMap}
+              selected={selected}
+            />
+          ))}
+        </group>
+      ))}
+    </group>
+  );
+}
+
+function MinecraftModelElement({ element, textures, textureMap, selected }: { element: MinecraftElement; textures: Record<string, string>; textureMap: TextureMap; selected: boolean }) {
+  const from = element.from;
+  const to = element.to;
+  const size: [number, number, number] = [
+    Math.max(0.001, (to[0] - from[0]) / 16),
+    Math.max(0.001, (to[1] - from[1]) / 16),
+    Math.max(0.001, (to[2] - from[2]) / 16),
+  ];
+  const position: [number, number, number] = [
+    (from[0] + to[0]) / 32 - 0.5,
+    (from[1] + to[1]) / 32 - 0.5,
+    (from[2] + to[2]) / 32 - 0.5,
+  ];
+  const materials = minecraftFaceMaterialOrder.map((faceName) => {
+    const face = element.faces?.[faceName];
+    const textureName = resolveMinecraftTextureName(face?.texture, textures);
+    const texture = textureName ? textureMap.get(textureName) : undefined;
+    return (
+      <meshStandardMaterial
+        key={faceName}
+        attach={`material-${minecraftFaceMaterialOrder.indexOf(faceName)}`}
+        color={texture ? '#ffffff' : '#d1d5db'}
+        map={texture}
+        roughness={0.88}
+        metalness={0.02}
+        transparent={textureName?.includes('glass') || textureName?.includes('lantern')}
+        opacity={textureName?.includes('glass') ? 0.58 : 1}
+        emissive={selected ? '#facc15' : '#000000'}
+        emissiveIntensity={selected ? 0.16 : 0}
+      />
+    );
+  });
+  const rotation = element.rotation ? elementRotationToEuler(element.rotation) : [0, 0, 0] as [number, number, number];
+  return (
+    <mesh castShadow receiveShadow position={position} rotation={rotation}>
+      <boxGeometry args={size} />
+      {materials}
       <Edges color={selected ? '#facc15' : '#1f2937'} />
     </mesh>
   );
@@ -2097,6 +2237,112 @@ function findTextureForBlock(blockId: string, textureMap: TextureMap) {
     if (texture) return texture;
   }
   return undefined;
+}
+
+function findBlockstateForBlock(blockId: string, blockstateMap: BlockstateMap) {
+  if (!blockId.startsWith('minecraft:')) return undefined;
+  return blockstateMap.get(blockId.slice('minecraft:'.length));
+}
+
+function resolveBlockstateModels(block: Block, blockstate: MinecraftBlockstate, modelMap: ModelMap): ResolvedMinecraftModel[] {
+  const variants = selectMinecraftVariants(block, blockstate);
+  return variants.flatMap((variant) => {
+    const resolved = resolveMinecraftModel(variant.model, modelMap);
+    if (!resolved?.elements?.length) return [];
+    return [{
+      elements: resolved.elements,
+      textures: resolved.textures,
+      rotation: [
+        THREE.MathUtils.degToRad(variant.x ?? 0),
+        THREE.MathUtils.degToRad(variant.y ?? 0),
+        0,
+      ] as [number, number, number],
+    }];
+  });
+}
+
+function selectMinecraftVariants(block: Block, blockstate: MinecraftBlockstate): MinecraftVariant[] {
+  if (blockstate.variants) {
+    const entries = Object.entries(blockstate.variants);
+    const exact = entries.find(([key]) => variantKeyMatchesBlock(key, block));
+    const fallback = entries.find(([key]) => key === '') ?? entries[0];
+    const selected = exact ?? fallback;
+    return selected ? asVariantArray(selected[1]).slice(0, 1) : [];
+  }
+  if (blockstate.multipart) {
+    return blockstate.multipart
+      .filter((part) => multipartWhenMatches(part.when, block))
+      .flatMap((part) => asVariantArray(part.apply).slice(0, 1));
+  }
+  return [];
+}
+
+function asVariantArray(value: MinecraftVariant | MinecraftVariant[]) {
+  return Array.isArray(value) ? value : [value];
+}
+
+function variantKeyMatchesBlock(key: string, block: Block) {
+  if (!key) return true;
+  return key.split(',').every((entry) => {
+    const [name, value] = entry.split('=');
+    return String((block.properties as Record<string, unknown> | undefined)?.[name] ?? defaultBlockProperty(block, name)) === value;
+  });
+}
+
+function multipartWhenMatches(when: unknown, block: Block): boolean {
+  if (!when) return true;
+  if (typeof when !== 'object') return true;
+  const condition = when as Record<string, unknown>;
+  if (Array.isArray(condition.OR)) return condition.OR.some((item) => multipartWhenMatches(item, block));
+  if (Array.isArray(condition.AND)) return condition.AND.every((item) => multipartWhenMatches(item, block));
+  return Object.entries(condition).every(([name, expected]) => {
+    const actual = String((block.properties as Record<string, unknown> | undefined)?.[name] ?? defaultBlockProperty(block, name));
+    return String(expected).split('|').includes(actual);
+  });
+}
+
+function defaultBlockProperty(block: Block, name: string) {
+  const option = findBlockOptionFromCatalog(block.block, staticBlockCatalog);
+  return option.defaultProperties?.[name] ?? (name === 'waterlogged' ? 'false' : undefined);
+}
+
+function resolveMinecraftModel(modelRef: string, modelMap: ModelMap, seen = new Set<string>()): { elements: MinecraftElement[]; textures: Record<string, string> } | null {
+  const key = normalizeMinecraftModelRef(modelRef);
+  if (seen.has(key)) return null;
+  const model = modelMap.get(key);
+  if (!model) return null;
+  seen.add(key);
+  const parent = model.parent ? resolveMinecraftModel(model.parent, modelMap, seen) : null;
+  const textures = { ...(parent?.textures ?? {}), ...(model.textures ?? {}) };
+  const elements = model.elements ?? parent?.elements ?? [];
+  return { elements, textures };
+}
+
+function normalizeMinecraftModelRef(modelRef: string) {
+  const noNamespace = modelRef.replace(/^minecraft:/, '');
+  return noNamespace.startsWith('block/') ? noNamespace : `block/${noNamespace}`;
+}
+
+function resolveMinecraftTextureName(textureRef: string | undefined, textures: Record<string, string>): string | undefined {
+  if (!textureRef) return undefined;
+  let current = textureRef;
+  const seen = new Set<string>();
+  while (current.startsWith('#')) {
+    const key = current.slice(1);
+    if (seen.has(key)) return undefined;
+    seen.add(key);
+    current = textures[key] ?? '';
+    if (!current) return undefined;
+  }
+  return current.replace(/^minecraft:block\//, '').replace(/^block\//, '').replace(/^minecraft:/, '');
+}
+
+function elementRotationToEuler(rotation: MinecraftElement['rotation']): [number, number, number] {
+  if (!rotation) return [0, 0, 0];
+  const radians = THREE.MathUtils.degToRad(rotation.angle);
+  if (rotation.axis === 'x') return [radians, 0, 0];
+  if (rotation.axis === 'y') return [0, radians, 0];
+  return [0, 0, radians];
 }
 
 function findLogTextures(blockId: string, textureMap: TextureMap): LogTextureSet | undefined {
