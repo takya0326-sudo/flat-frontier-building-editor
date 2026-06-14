@@ -67,6 +67,20 @@ type ResolvedMinecraftModel = {
   textures: Record<string, string>;
   rotation: [number, number, number];
 };
+type NormalizedImport = {
+  template: BuildingTemplate;
+  diagnostics: {
+    inputBlocks: number;
+    inputMarkers: number;
+    outputBlocks: number;
+    outputMarkers: number;
+    droppedBlocks: number;
+    droppedMarkers: number;
+    offset: Vec3;
+  };
+};
+
+const appBuildLabel = '2026-06-14 JSON安全版';
 
 const directionLabels: Record<Direction, string> = {
   north: '北',
@@ -691,14 +705,20 @@ function App() {
         return;
       }
       const parsed = JSON.parse(value);
-      const imported = normalizeTemplate(Array.isArray(parsed) ? { blocks: parsed } : parsed);
+      const normalizedImport = normalizeTemplateWithDiagnostics(Array.isArray(parsed) ? { blocks: parsed } : parsed);
+      const imported = normalizedImport.template;
       setTemplate(imported);
       setSelectedBlockKey(null);
       setUseMinecraftModels(false);
       setCameraResetKey((value) => value + 1);
       setJsonText(JSON.stringify(imported, null, 2));
       setActiveTab('edit');
-      setMessage(`JSONを読み込みました。blocks: ${imported.blocks.length}、markers: ${imported.markers.length}`);
+      const offset = normalizedImport.diagnostics.offset;
+      const offsetText = offset.x || offset.y || offset.z ? ` / 座標補正: x+${offset.x} y+${offset.y} z+${offset.z}` : '';
+      const droppedText = normalizedImport.diagnostics.droppedBlocks || normalizedImport.diagnostics.droppedMarkers
+        ? ` / 範囲外除外: blocks ${normalizedImport.diagnostics.droppedBlocks}, markers ${normalizedImport.diagnostics.droppedMarkers}`
+        : '';
+      setMessage(`JSONを読み込みました。入力 blocks: ${normalizedImport.diagnostics.inputBlocks} → 表示 ${normalizedImport.diagnostics.outputBlocks}、markers: ${normalizedImport.diagnostics.outputMarkers}${offsetText}${droppedText}。jarモデル表示はOFFに戻しました。`);
     } catch (error) {
       const detail = error instanceof Error ? error.message : '不明なエラー';
       setMessage(`JSONの読み込みに失敗しました: ${detail}`);
@@ -719,7 +739,7 @@ function App() {
           <Box size={26} />
           <div>
             <h1>Flat Frontier Building Editor</h1>
-            <p>NeoForge 26.1.2 向け建物JSONエディタ</p>
+            <p>NeoForge 26.1.2 向け建物JSONエディタ / {appBuildLabel}</p>
           </div>
         </div>
 
@@ -729,6 +749,7 @@ function App() {
             <span>{normalizedTemplate.blocks.length}ブロック / {normalizedTemplate.markers.length}マーカー</span>
             <span>モード: {modeLabel}</span>
             <span>モデル: {useMinecraftModels ? 'ON' : 'OFF'}</span>
+            <span>版: {appBuildLabel}</span>
           </div>
 
         <nav className="panelTabs" aria-label="左パネル">
@@ -2116,8 +2137,14 @@ function WallDirections({ block, onChange }: { block: Block; onChange: (name: st
 }
 
 function normalizeTemplate(value: Partial<BuildingTemplate> & Record<string, unknown>): BuildingTemplate {
+  return normalizeTemplateWithDiagnostics(value).template;
+}
+
+function normalizeTemplateWithDiagnostics(value: Partial<BuildingTemplate> & Record<string, unknown>): NormalizedImport {
   const rawSize = value.size as Partial<Vec3> | undefined;
   const declaredSize = sanitizeVec3(rawSize, defaultTemplate.size, 1, 64);
+  const inputBlocks = Array.isArray(value.blocks) ? value.blocks.length : 0;
+  const inputMarkers = Array.isArray(value.markers) ? value.markers.length : 0;
   const rawBlocks = Array.isArray(value.blocks)
     ? value.blocks
       .map(normalizeBlock)
@@ -2128,12 +2155,13 @@ function normalizeTemplate(value: Partial<BuildingTemplate> & Record<string, unk
       .map(normalizeMarker)
       .filter((marker): marker is Marker => marker !== null)
     : [];
-  const size = expandSizeForContent(declaredSize, rawBlocks, rawMarkers);
+  const shiftedContent = shiftContentToPositive(rawBlocks, rawMarkers);
+  const size = expandSizeForContent(declaredSize, shiftedContent.blocks, shiftedContent.markers);
   const reserved_area = sanitizeVec3(value.reserved_area as Partial<Vec3> | undefined, size, 1, 96);
-  const blocks = rawBlocks.filter((block) => isInside(block, size));
-  const markers = rawMarkers.filter((marker) => isInside(marker, size, true));
+  const blocks = shiftedContent.blocks.filter((block) => isInside(block, size));
+  const markers = shiftedContent.markers.filter((marker) => isInside(marker, size, true));
 
-  return {
+  const template = {
     building_id: String(value.building_id ?? defaultTemplate.building_id),
     building_type: String(value.building_type ?? defaultTemplate.building_type),
     level: normalizeInt(Number(value.level ?? defaultTemplate.level), 1, 99),
@@ -2151,6 +2179,19 @@ function normalizeTemplate(value: Partial<BuildingTemplate> & Record<string, unk
     construction_time_ticks: normalizeInt(Number(value.construction_time_ticks ?? defaultTemplate.construction_time_ticks), 0, 999999),
     instant_complete_fron: Boolean(value.instant_complete_fron),
   };
+
+  return {
+    template,
+    diagnostics: {
+      inputBlocks,
+      inputMarkers,
+      outputBlocks: blocks.length,
+      outputMarkers: markers.length,
+      droppedBlocks: rawBlocks.length - blocks.length,
+      droppedMarkers: rawMarkers.length - markers.length,
+      offset: shiftedContent.offset,
+    },
+  };
 }
 
 function normalizeBlock(value: unknown): Block | null {
@@ -2166,11 +2207,27 @@ function normalizeBlock(value: unknown): Block | null {
     ...(raw.properties && typeof raw.properties === 'object' ? raw.properties as Record<string, unknown> : {}),
   };
   return {
-    x: normalizeInt(Number(position.x), 0, 128),
-    y: normalizeInt(Number(position.y), 0, 128),
-    z: normalizeInt(Number(position.z), 0, 128),
+    x: normalizeInt(Number(position.x), -128, 128),
+    y: normalizeInt(Number(position.y), -128, 128),
+    z: normalizeInt(Number(position.z), -128, 128),
     block: blockId,
     properties: normalizeProperties(blockOption, rawProperties),
+  };
+}
+
+function shiftContentToPositive(blocks: Block[], markers: Marker[]) {
+  const xs = [...blocks.map((block) => block.x), ...markers.map((marker) => marker.x)];
+  const ys = [...blocks.map((block) => block.y), ...markers.map((marker) => marker.y)];
+  const zs = [...blocks.map((block) => block.z), ...markers.map((marker) => marker.z)];
+  const minX = Math.min(0, ...xs);
+  const minY = Math.min(0, ...ys);
+  const minZ = Math.min(0, ...zs);
+  const offset: Vec3 = { x: -minX, y: -minY, z: -minZ };
+  if (!offset.x && !offset.y && !offset.z) return { blocks, markers, offset };
+  return {
+    blocks: blocks.map((block) => ({ ...block, x: block.x + offset.x, y: block.y + offset.y, z: block.z + offset.z })),
+    markers: markers.map((marker) => ({ ...marker, x: marker.x + offset.x, y: marker.y + offset.y, z: marker.z + offset.z })),
+    offset,
   };
 }
 
@@ -2182,9 +2239,9 @@ function normalizeMarker(value: unknown): Marker | null {
   const position = readPosition(raw);
   return {
     type,
-    x: normalizeInt(Number(position.x), 0, 128),
-    y: normalizeInt(Number(position.y), 0, 128),
-    z: normalizeInt(Number(position.z), -1, 128),
+    x: normalizeInt(Number(position.x), -128, 128),
+    y: normalizeInt(Number(position.y), -128, 128),
+    z: normalizeInt(Number(position.z), -128, 128),
   };
 }
 
